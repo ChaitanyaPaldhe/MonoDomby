@@ -49,6 +49,7 @@ export enum EventType {
   HOTEL_BUILT = 'HOTEL_BUILT',
   HOUSE_SOLD = 'HOUSE_SOLD',
   HOTEL_SOLD = 'HOTEL_SOLD',
+  BANK_SHORTAGE = 'BANK_SHORTAGE',
   PROPERTY_MORTGAGED = 'PROPERTY_MORTGAGED',
   PROPERTY_UNMORTGAGED = 'PROPERTY_UNMORTGAGED',
 
@@ -67,7 +68,14 @@ export enum EventType {
 
   // Cards
   CARD_DRAWN = 'CARD_DRAWN',
-  CARD_EFFECT_APPLIED = 'CARD_EFFECT_APPLIED',
+  CARD_APPLIED = 'CARD_APPLIED',
+  CARD_MOVED_PLAYER = 'CARD_MOVED_PLAYER',
+  CARD_MONEY_TRANSFER = 'CARD_MONEY_TRANSFER',
+  CARD_PLAYER_PAID = 'CARD_PLAYER_PAID',
+  CARD_PLAYER_RECEIVED = 'CARD_PLAYER_RECEIVED',
+  CARD_SENT_TO_JAIL = 'CARD_SENT_TO_JAIL',
+  CARD_ADDED_TO_INVENTORY = 'CARD_ADDED_TO_INVENTORY',
+  CARD_RETURNED_TO_DECK = 'CARD_RETURNED_TO_DECK',
 
   // Jail
   PLAYER_JAILED = 'PLAYER_JAILED',
@@ -78,6 +86,14 @@ export enum EventType {
   MONEY_TRANSFERRED = 'MONEY_TRANSFERRED',
 
   // Bankruptcy
+  DEBT_RECOVERY_STARTED = 'DEBT_RECOVERY_STARTED',
+  DEBT_RECOVERY_COMPLETED = 'DEBT_RECOVERY_COMPLETED',
+  BANKRUPTCY_STARTED = 'BANKRUPTCY_STARTED',
+  BANKRUPTCY_RESOLVED = 'BANKRUPTCY_RESOLVED',
+  PLAYER_ELIMINATED = 'PLAYER_ELIMINATED',
+  PROPERTY_TRANSFERRED = 'PROPERTY_TRANSFERRED',
+  PROPERTY_RETURNED_TO_BANK = 'PROPERTY_RETURNED_TO_BANK',
+  DEBT_SETTLED = 'DEBT_SETTLED',
   BANKRUPTCY_DECLARED = 'BANKRUPTCY_DECLARED',
   ASSETS_TRANSFERRED = 'ASSETS_TRANSFERRED',
 
@@ -293,12 +309,53 @@ export interface CardDrawnPayload {
   readonly cardText: string;
 }
 
-export interface CardEffectAppliedPayload {
+export interface CardAppliedPayload {
   readonly playerId: PlayerId;
   readonly cardId: string;
   readonly effectType: string;
-  /** Human-readable description of what happened, e.g. "Collected $200 from bank". */
-  readonly result: string;
+}
+
+export interface CardMovedPlayerPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+  readonly toPosition: number;
+  readonly passedGo: boolean;
+}
+
+export interface CardMoneyTransferPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+  readonly amount: number;
+  readonly toBank: boolean; // true = paid to bank, false = received from bank
+}
+
+export interface CardPlayerPaidPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+  readonly payeeIds: readonly PlayerId[];
+  readonly amountPerPlayer: number;
+}
+
+export interface CardPlayerReceivedPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+  readonly payerIds: readonly PlayerId[];
+  readonly amountPerPlayer: number;
+}
+
+export interface CardSentToJailPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+}
+
+export interface CardAddedToInventoryPayload {
+  readonly playerId: PlayerId;
+  readonly cardId: string;
+}
+
+export interface CardReturnedToDeckPayload {
+  readonly cardId: string;
+  readonly deckType: CardDeckType;
 }
 
 export interface PlayerJailedPayload {
@@ -390,9 +447,55 @@ export interface PlayerReconnectedPayload {
   readonly playerId: PlayerId;
 }
 
+export interface BankShortagePayload {
+  readonly groupId: string;
+  readonly reason: string;
+}
+
 export interface HostMigratedPayload {
   readonly newHostId: PlayerId;
   readonly previousHostId: PlayerId;
+}
+
+
+export interface DebtRecoveryStartedPayload {
+  readonly playerId: PlayerId;
+  readonly creditorId: PlayerId | null;
+  readonly amountOwed: number;
+}
+
+export interface DebtRecoveryCompletedPayload {
+  readonly playerId: PlayerId;
+}
+
+export interface BankruptcyStartedPayload {
+  readonly playerId: PlayerId;
+  readonly creditorId: PlayerId | null;
+}
+
+export interface BankruptcyResolvedPayload {
+  readonly playerId: PlayerId;
+}
+
+export interface PlayerEliminatedPayload {
+  readonly playerId: PlayerId;
+}
+
+export interface PropertyTransferredPayload {
+  readonly fromPlayerId: PlayerId;
+  readonly toPlayerId: PlayerId | null;
+  readonly properties: readonly TileId[];
+}
+
+export interface PropertyReturnedToBankPayload {
+  readonly fromPlayerId: PlayerId;
+  readonly properties: readonly TileId[];
+}
+
+export interface DebtSettledPayload {
+  readonly playerId: PlayerId;
+  readonly creditorId: PlayerId | null;
+  readonly amount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -433,6 +536,7 @@ export type HouseBuiltEvent = BaseEvent<EventType.HOUSE_BUILT, HouseBuiltPayload
 export type HotelBuiltEvent = BaseEvent<EventType.HOTEL_BUILT, HotelBuiltPayload>;
 export type HouseSoldEvent = BaseEvent<EventType.HOUSE_SOLD, HouseSoldPayload>;
 export type HotelSoldEvent = BaseEvent<EventType.HOTEL_SOLD, HotelSoldPayload>;
+export type BankShortageEvent = BaseEvent<EventType.BANK_SHORTAGE, BankShortagePayload>;
 export type PropertyMortgagedEvent = BaseEvent<EventType.PROPERTY_MORTGAGED, PropertyMortgagedPayload>;
 export type PropertyUnmortgagedEvent = BaseEvent<EventType.PROPERTY_UNMORTGAGED, PropertyUnmortgagedPayload>;
 
@@ -448,13 +552,30 @@ export type TradeCancelledEvent = BaseEvent<EventType.TRADE_CANCELLED, TradeCanc
 export type TradeExecutedEvent = BaseEvent<EventType.TRADE_EXECUTED, TradeExecutedPayload>;
 
 export type CardDrawnEvent = BaseEvent<EventType.CARD_DRAWN, CardDrawnPayload>;
-export type CardEffectAppliedEvent = BaseEvent<EventType.CARD_EFFECT_APPLIED, CardEffectAppliedPayload>;
+export type CardAppliedEvent = BaseEvent<EventType.CARD_APPLIED, CardAppliedPayload>;
+export type CardMovedPlayerEvent = BaseEvent<EventType.CARD_MOVED_PLAYER, CardMovedPlayerPayload>;
+export type CardMoneyTransferEvent = BaseEvent<EventType.CARD_MONEY_TRANSFER, CardMoneyTransferPayload>;
+export type CardPlayerPaidEvent = BaseEvent<EventType.CARD_PLAYER_PAID, CardPlayerPaidPayload>;
+export type CardPlayerReceivedEvent = BaseEvent<EventType.CARD_PLAYER_RECEIVED, CardPlayerReceivedPayload>;
+export type CardSentToJailEvent = BaseEvent<EventType.CARD_SENT_TO_JAIL, CardSentToJailPayload>;
+export type CardAddedToInventoryEvent = BaseEvent<EventType.CARD_ADDED_TO_INVENTORY, CardAddedToInventoryPayload>;
+export type CardReturnedToDeckEvent = BaseEvent<EventType.CARD_RETURNED_TO_DECK, CardReturnedToDeckPayload>;
 
 export type PlayerJailedEvent = BaseEvent<EventType.PLAYER_JAILED, PlayerJailedPayload>;
 export type PlayerReleasedJailEvent = BaseEvent<EventType.PLAYER_RELEASED_JAIL, PlayerReleasedJailPayload>;
 
 export type TaxPaidEvent = BaseEvent<EventType.TAX_PAID, TaxPaidPayload>;
 export type MoneyTransferredEvent = BaseEvent<EventType.MONEY_TRANSFERRED, MoneyTransferredPayload>;
+
+
+export type DebtRecoveryStartedEvent = BaseEvent<EventType.DEBT_RECOVERY_STARTED, DebtRecoveryStartedPayload>;
+export type DebtRecoveryCompletedEvent = BaseEvent<EventType.DEBT_RECOVERY_COMPLETED, DebtRecoveryCompletedPayload>;
+export type BankruptcyStartedEvent = BaseEvent<EventType.BANKRUPTCY_STARTED, BankruptcyStartedPayload>;
+export type BankruptcyResolvedEvent = BaseEvent<EventType.BANKRUPTCY_RESOLVED, BankruptcyResolvedPayload>;
+export type PlayerEliminatedEvent = BaseEvent<EventType.PLAYER_ELIMINATED, PlayerEliminatedPayload>;
+export type PropertyTransferredEvent = BaseEvent<EventType.PROPERTY_TRANSFERRED, PropertyTransferredPayload>;
+export type PropertyReturnedToBankEvent = BaseEvent<EventType.PROPERTY_RETURNED_TO_BANK, PropertyReturnedToBankPayload>;
+export type DebtSettledEvent = BaseEvent<EventType.DEBT_SETTLED, DebtSettledPayload>;
 
 export type BankruptcyDeclaredEvent = BaseEvent<EventType.BANKRUPTCY_DECLARED, BankruptcyDeclaredPayload>;
 export type AssetsTransferredEvent = BaseEvent<EventType.ASSETS_TRANSFERRED, AssetsTransferredPayload>;
@@ -496,6 +617,7 @@ export type GameEvent =
   | HotelBuiltEvent
   | HouseSoldEvent
   | HotelSoldEvent
+  | BankShortageEvent
   | PropertyMortgagedEvent
   | PropertyUnmortgagedEvent
   | AuctionBidPlacedEvent
@@ -508,11 +630,27 @@ export type GameEvent =
   | TradeCancelledEvent
   | TradeExecutedEvent
   | CardDrawnEvent
-  | CardEffectAppliedEvent
+  | CardAppliedEvent
+  | CardMovedPlayerEvent
+  | CardMoneyTransferEvent
+  | CardPlayerPaidEvent
+  | CardPlayerReceivedEvent
+  | CardSentToJailEvent
+  | CardAddedToInventoryEvent
+  | CardReturnedToDeckEvent
   | PlayerJailedEvent
   | PlayerReleasedJailEvent
   | TaxPaidEvent
   | MoneyTransferredEvent
+
+  | DebtRecoveryStartedEvent
+  | DebtRecoveryCompletedEvent
+  | BankruptcyStartedEvent
+  | BankruptcyResolvedEvent
+  | PlayerEliminatedEvent
+  | PropertyTransferredEvent
+  | PropertyReturnedToBankEvent
+  | DebtSettledEvent
   | BankruptcyDeclaredEvent
   | AssetsTransferredEvent
   | GameStartedEvent

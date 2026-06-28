@@ -8,7 +8,7 @@
 //   import { GameEngine, StateMachine, DiceEngine, ... } from './engine/index.js';
 // =============================================================================
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MapConfigError = exports.EngineTransitionError = exports.EngineStateCorruptionError = exports.EngineNotImplementedError = exports.EngineValidationError = exports.EngineError = exports.TileResolver = exports.BankruptcyEngine = exports.CardHandlerRegistry = exports.CardEngine = exports.TradeEngine = exports.AuctionEngine = exports.WinDetector = exports.DiceEngine = exports.RuleEngine = exports.ActionProcessor = exports.StateMachine = exports.GameEngine = void 0;
+exports.MapConfigError = exports.EngineTransitionError = exports.EngineStateCorruptionError = exports.EngineNotImplementedError = exports.EngineValidationError = exports.EngineError = exports.TileResolver = exports.BankruptcyEngine = exports.CardEngine = exports.TradeEngine = exports.AuctionEngine = exports.WinDetector = exports.DiceEngine = exports.RuleEngine = exports.ActionProcessor = exports.StateMachine = exports.GameEngine = void 0;
 // Core orchestrator — the primary public API
 var GameEngine_js_1 = require("./GameEngine.js");
 Object.defineProperty(exports, "GameEngine", { enumerable: true, get: function () { return GameEngine_js_1.GameEngine; } });
@@ -29,7 +29,6 @@ var TradeEngine_js_1 = require("./TradeEngine.js");
 Object.defineProperty(exports, "TradeEngine", { enumerable: true, get: function () { return TradeEngine_js_1.TradeEngine; } });
 var CardEngine_js_1 = require("./CardEngine.js");
 Object.defineProperty(exports, "CardEngine", { enumerable: true, get: function () { return CardEngine_js_1.CardEngine; } });
-Object.defineProperty(exports, "CardHandlerRegistry", { enumerable: true, get: function () { return CardEngine_js_1.CardHandlerRegistry; } });
 var BankruptcyEngine_js_1 = require("./BankruptcyEngine.js");
 Object.defineProperty(exports, "BankruptcyEngine", { enumerable: true, get: function () { return BankruptcyEngine_js_1.BankruptcyEngine; } });
 var TileResolver_js_1 = require("./TileResolver.js");

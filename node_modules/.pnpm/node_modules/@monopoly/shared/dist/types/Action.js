@@ -36,6 +36,8 @@ var ActionType;
     ActionType["DECLINE_PROPERTY"] = "DECLINE_PROPERTY";
     /** Player ends their turn. Only valid in POST_ROLL phase. */
     ActionType["END_TURN"] = "END_TURN";
+    /** Player applies a drawn Chance/Community Chest card. */
+    ActionType["APPLY_CARD"] = "APPLY_CARD";
     // Jail
     /** Player pays the jail fine to be released immediately. */
     ActionType["PAY_JAIL_FINE"] = "PAY_JAIL_FINE";

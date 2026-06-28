@@ -16,6 +16,16 @@ const shared_1 = require("@monopoly/shared");
 const errors_js_1 = require("./errors.js");
 const TileResolver_js_1 = require("./TileResolver.js");
 const DiceEngine_js_1 = require("./DiceEngine.js");
+const AuctionEngine_js_1 = require("./AuctionEngine.js");
+const CardEngine_js_1 = require("./CardEngine.js");
+const PhaseUtils_js_1 = require("./utils/PhaseUtils.js");
+const PropertyTransactionPlanner_js_1 = require("./PropertyTransactionPlanner.js");
+const PropertyManagementEngine_js_1 = require("./PropertyManagementEngine.js");
+const MortgagePlanner_js_1 = require("./MortgagePlanner.js");
+const MortgageEngine_js_1 = require("./MortgageEngine.js");
+const BankruptcyPlanner_js_1 = require("./BankruptcyPlanner.js");
+const BankruptcyEngine_js_1 = require("./BankruptcyEngine.js");
+const DebtResolutionEngine_js_1 = require("./DebtResolutionEngine.js");
 // ---------------------------------------------------------------------------
 // ActionProcessor
 // ---------------------------------------------------------------------------
@@ -34,6 +44,8 @@ class ActionProcessor {
     validators = new Map();
     handlers = new Map();
     tileResolver;
+    cardEngine;
+    auctionEngine = new AuctionEngine_js_1.AuctionEngine();
     /**
      * @param stateMachine       Shared StateMachine instance from GameEngine.
      * @param customTileHandlers Optional map of tile-ID → handler for CUSTOM tiles.
@@ -42,6 +54,7 @@ class ActionProcessor {
     constructor(stateMachine, customTileHandlers) {
         this.stateMachine = stateMachine;
         this.tileResolver = new TileResolver_js_1.TileResolver(customTileHandlers);
+        this.cardEngine = new CardEngine_js_1.CardEngine();
         this.registerValidators();
         this.registerHandlers();
     }
@@ -104,6 +117,7 @@ class ActionProcessor {
         this.validators.set(shared_1.ActionType.BUY_PROPERTY, this.validateBuyProperty.bind(this));
         this.validators.set(shared_1.ActionType.DECLINE_PROPERTY, this.validateDeclineProperty.bind(this));
         this.validators.set(shared_1.ActionType.END_TURN, this.validateEndTurn.bind(this));
+        this.validators.set(shared_1.ActionType.APPLY_CARD, this.validateApplyCard.bind(this));
         // Jail
         this.validators.set(shared_1.ActionType.PAY_JAIL_FINE, this.validatePayJailFine.bind(this));
         this.validators.set(shared_1.ActionType.USE_JAIL_CARD, this.validateUseJailCard.bind(this));
@@ -115,6 +129,9 @@ class ActionProcessor {
         this.validators.set(shared_1.ActionType.SELL_HOTEL, this.validateSellHotel.bind(this));
         this.validators.set(shared_1.ActionType.MORTGAGE_PROPERTY, this.validateMortgageProperty.bind(this));
         this.validators.set(shared_1.ActionType.UNMORTGAGE_PROPERTY, this.validateUnmortgageProperty.bind(this));
+        // Auction
+        this.validators.set(shared_1.ActionType.PLACE_BID, this.validatePlaceBid.bind(this));
+        this.validators.set(shared_1.ActionType.AUCTION_FOLD, this.validateAuctionFold.bind(this));
         // Trade
         this.validators.set(shared_1.ActionType.TRADE_PROPOSE, this.validateTradePropose.bind(this));
         this.validators.set(shared_1.ActionType.TRADE_ACCEPT, this.validateTradeAccept.bind(this));
@@ -123,6 +140,8 @@ class ActionProcessor {
         this.validators.set(shared_1.ActionType.TRADE_CANCEL, this.validateTradeCancel.bind(this));
         // System
         this.validators.set(shared_1.ActionType.REQUEST_FULL_STATE, this.validateRequestFullState.bind(this));
+        // Bankruptcy
+        this.validators.set(shared_1.ActionType.DECLARE_BANKRUPTCY, this.validateDeclareBankruptcy.bind(this));
     }
     // -------------------------------------------------------------------------
     // Handler Registration
@@ -137,6 +156,7 @@ class ActionProcessor {
         this.handlers.set(shared_1.ActionType.BUY_PROPERTY, this.handleBuyProperty.bind(this));
         this.handlers.set(shared_1.ActionType.DECLINE_PROPERTY, this.handleDeclineProperty.bind(this));
         this.handlers.set(shared_1.ActionType.END_TURN, this.handleEndTurn.bind(this));
+        this.handlers.set(shared_1.ActionType.APPLY_CARD, this.handleApplyCard.bind(this));
         // Jail
         this.handlers.set(shared_1.ActionType.PAY_JAIL_FINE, this.handlePayJailFine.bind(this));
         this.handlers.set(shared_1.ActionType.USE_JAIL_CARD, this.handleUseJailCard.bind(this));
@@ -148,6 +168,9 @@ class ActionProcessor {
         this.handlers.set(shared_1.ActionType.SELL_HOTEL, this.handleSellHotel.bind(this));
         this.handlers.set(shared_1.ActionType.MORTGAGE_PROPERTY, this.handleMortgageProperty.bind(this));
         this.handlers.set(shared_1.ActionType.UNMORTGAGE_PROPERTY, this.handleUnmortgageProperty.bind(this));
+        // Auction
+        this.handlers.set(shared_1.ActionType.PLACE_BID, this.handlePlaceBid.bind(this));
+        this.handlers.set(shared_1.ActionType.AUCTION_FOLD, this.handleAuctionFold.bind(this));
         // Trade
         this.handlers.set(shared_1.ActionType.TRADE_PROPOSE, this.handleTradePropose.bind(this));
         this.handlers.set(shared_1.ActionType.TRADE_ACCEPT, this.handleTradeAccept.bind(this));
@@ -156,6 +179,8 @@ class ActionProcessor {
         this.handlers.set(shared_1.ActionType.TRADE_CANCEL, this.handleTradeCancel.bind(this));
         // System
         this.handlers.set(shared_1.ActionType.REQUEST_FULL_STATE, this.handleRequestFullState.bind(this));
+        // Bankruptcy
+        this.handlers.set(shared_1.ActionType.DECLARE_BANKRUPTCY, this.handleDeclareBankruptcy.bind(this));
     }
     // =========================================================================
     //  ROLL_DICE — Fully Implemented
@@ -355,6 +380,37 @@ class ActionProcessor {
         return this.tileResolver.resolve(state, tileIndex, config, action, actingPlayerId);
     }
     // =========================================================================
+    //  Cards
+    // =========================================================================
+    validateApplyCard(state, _action, _config, actingPlayerId) {
+        if (state.phase !== shared_1.GamePhase.IN_PROGRESS) {
+            return fail(shared_1.ErrorCode.E_GAME_NOT_STARTED, 'Game is not in progress.');
+        }
+        if (state.turn.currentPlayerId !== actingPlayerId) {
+            return fail(shared_1.ErrorCode.E_NOT_YOUR_TURN, 'It is not your turn.');
+        }
+        if (state.turn.phase !== shared_1.TurnPhase.CARD_DRAWN) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot apply card outside CARD_DRAWN phase.');
+        }
+        if (!state.pendingCard) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'No pending card to apply.');
+        }
+        if (state.pendingCard.playerId !== actingPlayerId) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'Pending card belongs to another player.');
+        }
+        return ok();
+    }
+    handleApplyCard(state, action, mapConfig, actingPlayerId) {
+        const result = this.cardEngine.executeCard(state, action, mapConfig, actingPlayerId, this.tileResolver);
+        return {
+            newState: {
+                ...result.newState,
+                version: state.version + 1,
+            },
+            events: result.events,
+        };
+    }
+    // =========================================================================
     //  ROOM actions — stubs
     // =========================================================================
     validateRoomReady(state, _action, _config, _actingPlayerId) {
@@ -379,30 +435,227 @@ class ActionProcessor {
         throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleRoomStartGame');
     }
     // =========================================================================
-    //  BUY_PROPERTY — stub
+    //  BANKRUPTCY actions
     // =========================================================================
-    validateBuyProperty(state, _action, _config, actingPlayerId) {
+    validateDeclareBankruptcy(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate pending decision is PURCHASE, player has funds
         return ok();
     }
-    handleBuyProperty(state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleBuyProperty');
+    handleDeclareBankruptcy(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.DECLARE_BANKRUPTCY) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = BankruptcyPlanner_js_1.BankruptcyPlanner.planBankruptcy(state, config, actingPlayerId, action.actionId, action.clientTs);
+        const { newState, events } = BankruptcyEngine_js_1.BankruptcyEngine.executeBankruptcyPlan(state, plan, config, action.actionId, action.clientTs);
+        return { newState: { ...newState, version: state.version + 1 }, events };
+    }
+    // =========================================================================
+    //  BUY_PROPERTY — stub
+    // =========================================================================
+    validateBuyProperty(state, _action, config, actingPlayerId) {
+        const base = this.baseGameplayValidation(state, actingPlayerId);
+        if (!base.valid)
+            return base;
+        if (state.turn.phase !== shared_1.TurnPhase.PURCHASE_DECISION) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, `Cannot buy property in phase ${state.turn.phase}`);
+        }
+        const decision = state.turn.pendingDecision;
+        if (!decision || decision.type !== shared_1.DecisionType.PURCHASE) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'No pending purchase decision found');
+        }
+        const tileId = decision.tileId;
+        const tileState = state.board.tiles[tileId];
+        if (!tileState) {
+            throw new errors_js_1.EngineStateCorruptionError(`TileState missing for tile ${tileId}`);
+        }
+        if (tileState.ownerId !== null) {
+            return fail(shared_1.ErrorCode.E_PROPERTY_OWNED, `Property ${tileId} is already owned by ${tileState.ownerId}`);
+        }
+        const tileConfig = config.board.tiles.find(t => t.id === tileId);
+        if (!tileConfig) {
+            throw new errors_js_1.EngineStateCorruptionError(`MapConfig missing tile ${tileId}`);
+        }
+        let price = 0;
+        if (tileConfig.type === shared_1.TileType.PROPERTY && tileConfig.propertyData) {
+            price = tileConfig.propertyData.price;
+        }
+        else if (tileConfig.type === shared_1.TileType.RAILROAD && tileConfig.railroadData) {
+            price = tileConfig.railroadData.price;
+        }
+        else if (tileConfig.type === shared_1.TileType.UTILITY && tileConfig.utilityData) {
+            price = tileConfig.utilityData.price;
+        }
+        else {
+            throw new errors_js_1.EngineStateCorruptionError(`Tile ${tileId} is not a purchasable type`);
+        }
+        const player = state.players[actingPlayerId];
+        if (!player) {
+            throw new errors_js_1.EngineStateCorruptionError(`Player ${actingPlayerId} missing`);
+        }
+        if (player.money < price) {
+            return fail(shared_1.ErrorCode.E_DEBT_RECOVERY, `Insufficient funds to buy ${tileId}`);
+        }
+        return ok();
+    }
+    handleBuyProperty(state, action, config, actingPlayerId) {
+        const decision = state.turn.pendingDecision;
+        if (decision.type !== shared_1.DecisionType.PURCHASE)
+            throw new errors_js_1.EngineStateCorruptionError('Not a purchase decision');
+        const tileId = decision.tileId;
+        const tileConfig = config.board.tiles.find(t => t.id === tileId);
+        let price = 0;
+        let groupId = null;
+        if (tileConfig.type === shared_1.TileType.PROPERTY && tileConfig.propertyData) {
+            price = tileConfig.propertyData.price;
+            groupId = tileConfig.propertyData.groupId;
+        }
+        else if (tileConfig.type === shared_1.TileType.RAILROAD && tileConfig.railroadData) {
+            price = tileConfig.railroadData.price;
+        }
+        else if (tileConfig.type === shared_1.TileType.UTILITY && tileConfig.utilityData) {
+            price = tileConfig.utilityData.price;
+        }
+        const player = state.players[actingPlayerId];
+        // 1. Deduct money from player and give to bank
+        const newPlayerMoney = player.money - price;
+        const newBankMoney = state.bank.money + price;
+        // 2. Add tile to player properties
+        const newProperties = [...player.properties, tileId];
+        // 3. Update TileState
+        const newTileState = {
+            ...state.board.tiles[tileId],
+            ownerId: actingPlayerId,
+        };
+        // 4. Check for completed color group (monopoly)
+        let completedGroup = false;
+        if (groupId) {
+            const groupConfig = config.board.propertyGroups?.find(g => g.id === groupId);
+            if (groupConfig) {
+                // Is every tile in the group now owned by this player?
+                completedGroup = groupConfig.tileIds.every(tId => newProperties.includes(tId));
+            }
+        }
+        const events = [];
+        // PROPERTY_PURCHASED event
+        events.push({
+            id: `${action.actionId}::PROPERTY_PURCHASED`,
+            type: shared_1.EventType.PROPERTY_PURCHASED,
+            roomId: state.roomId,
+            gameId: state.id,
+            audience: { type: 'ALL' },
+            ts: action.clientTs,
+            payload: {
+                playerId: actingPlayerId,
+                tileId: tileId,
+                price: price,
+            },
+        });
+        if (completedGroup && groupId) {
+            events.push({
+                id: `${action.actionId}::MONOPOLY_COMPLETED`,
+                type: shared_1.EventType.MONOPOLY_COMPLETED,
+                roomId: state.roomId,
+                gameId: state.id,
+                audience: { type: 'ALL' },
+                ts: action.clientTs,
+                payload: {
+                    playerId: actingPlayerId,
+                    groupId: groupId,
+                },
+            });
+        }
+        // 5. Build new state
+        const newState = {
+            ...state,
+            version: state.version + 1,
+            bank: {
+                ...state.bank,
+                money: newBankMoney,
+            },
+            players: {
+                ...state.players,
+                [actingPlayerId]: {
+                    ...player,
+                    money: newPlayerMoney,
+                    properties: newProperties,
+                    // Note: netWorth does not change since cash - price + asset value cancels out
+                },
+            },
+            board: {
+                ...state.board,
+                tiles: {
+                    ...state.board.tiles,
+                    [tileId]: newTileState,
+                },
+            },
+            turn: {
+                ...state.turn,
+                phase: shared_1.TurnPhase.POST_ROLL,
+                pendingDecision: null,
+            },
+        };
+        return { newState, events };
     }
     // =========================================================================
     //  DECLINE_PROPERTY — stub
     // =========================================================================
-    validateDeclineProperty(state, _action, _config, actingPlayerId) {
+    validateDeclineProperty(state, action, config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate pending decision is PURCHASE
+        if (state.turn.pendingDecision?.type !== shared_1.DecisionType.PURCHASE) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'No pending purchase decision.');
+        }
+        const tileId = action.payload.tileId;
+        const tileConfig = config.board.tiles.find(t => t.id === tileId);
+        if (!tileConfig || (tileConfig.type !== shared_1.TileType.PROPERTY && tileConfig.type !== shared_1.TileType.RAILROAD && tileConfig.type !== shared_1.TileType.UTILITY)) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'Invalid property tile to decline.');
+        }
         return ok();
     }
-    handleDeclineProperty(state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleDeclineProperty');
+    handleDeclineProperty(state, action, config, actingPlayerId) {
+        const declineAction = action;
+        if (config.rules.auctionOnDecline) {
+            return this.auctionEngine.startAuction(state, declineAction.payload.tileId, config, action.clientTs);
+        }
+        else {
+            // If auctions disabled, just clear decision
+            const newState = {
+                ...state,
+                turn: { ...state.turn, pendingDecision: null },
+            };
+            return { newState, events: [] };
+        }
+    }
+    // =========================================================================
+    //  AUCTION
+    // =========================================================================
+    validatePlaceBid(state, action, config, actingPlayerId) {
+        if (state.phase !== shared_1.GamePhase.AUCTION || !state.auction) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'No auction is currently active.');
+        }
+        if (!state.auction.activeBidders.includes(actingPlayerId)) {
+            return fail(shared_1.ErrorCode.E_UNAUTHORIZED, 'You are not an active bidder.');
+        }
+        return ok();
+    }
+    handlePlaceBid(state, action, config, actingPlayerId) {
+        const placeBidAction = action;
+        return this.auctionEngine.placeBid(state, actingPlayerId, placeBidAction.payload.amount, config, action.clientTs);
+    }
+    validateAuctionFold(state, _action, _config, actingPlayerId) {
+        if (state.phase !== shared_1.GamePhase.AUCTION || !state.auction) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'No auction is currently active.');
+        }
+        if (!state.auction.activeBidders.includes(actingPlayerId)) {
+            return fail(shared_1.ErrorCode.E_UNAUTHORIZED, 'You are not an active bidder.');
+        }
+        return ok();
+    }
+    handleAuctionFold(state, action, config, actingPlayerId) {
+        return this.auctionEngine.foldAuction(state, actingPlayerId, config, action.clientTs);
     }
     // =========================================================================
     //  END_TURN — stub
@@ -414,14 +667,70 @@ class ActionProcessor {
         if (state.turn.phase !== shared_1.TurnPhase.POST_ROLL) {
             return fail(shared_1.ErrorCode.E_INVALID_PHASE, `Cannot end turn in phase '${state.turn.phase}'. Expected POST_ROLL.`);
         }
+        if (state.turn.pendingDecision !== null) {
+            return fail(shared_1.ErrorCode.E_PENDING_DECISION, 'Cannot end turn with an unresolved pending decision.');
+        }
+        if (state.auction !== null) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'Cannot end turn while an auction is active.');
+        }
+        const activeTrades = Object.keys(state.activeTrades);
+        if (activeTrades.length > 0) {
+            return fail(shared_1.ErrorCode.E_INVALID_ACTION, 'Cannot end turn with active trades.');
+        }
         return ok();
     }
-    handleEndTurn(state, _action, _config, _actingPlayerId) {
-        // TODO: Implement:
-        // 1. If state.turn.isDoubles → call StateMachine.resetTurnForDoubles()
-        // 2. Otherwise → call StateMachine.advanceToNextPlayer()
-        // 3. Emit TURN_ENDED event.
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleEndTurn');
+    handleEndTurn(state, action, config, _actingPlayerId) {
+        const events = [];
+        // 1. Emit TURN_ENDED for the current player
+        events.push({
+            id: `${action.actionId}::TURN_ENDED`,
+            type: shared_1.EventType.TURN_ENDED,
+            roomId: state.roomId,
+            gameId: state.id,
+            ts: action.clientTs,
+            audience: { type: 'ALL' },
+            payload: {
+                playerId: state.turn.currentPlayerId,
+                turnNumber: state.turn.turnNumber,
+            },
+        });
+        let newState;
+        const turnDurationMs = 60000;
+        const turnExpiresAt = action.clientTs + turnDurationMs;
+        const currentPlayer = state.players[state.turn.currentPlayerId];
+        // 2. Check for doubles extra turn vs next player
+        if (state.turn.isDoubles && currentPlayer && currentPlayer.jailState === null) {
+            newState = this.stateMachine.resetTurnForDoubles(state, turnExpiresAt);
+            events.push({
+                id: `${action.actionId}::EXTRA_TURN_GRANTED`,
+                type: shared_1.EventType.EXTRA_TURN_GRANTED,
+                roomId: state.roomId,
+                gameId: state.id,
+                ts: action.clientTs,
+                audience: { type: 'ALL' },
+                payload: {
+                    playerId: state.turn.currentPlayerId,
+                    reason: 'DOUBLES',
+                },
+            });
+        }
+        else {
+            newState = this.stateMachine.advanceToNextPlayer(state, turnExpiresAt);
+        }
+        // 3. Emit TURN_STARTED for whoever is next (or the same player if doubles)
+        events.push({
+            id: `${action.actionId}::TURN_STARTED`,
+            type: shared_1.EventType.TURN_STARTED,
+            roomId: state.roomId,
+            gameId: state.id,
+            ts: action.clientTs,
+            audience: { type: 'ALL' },
+            payload: {
+                playerId: newState.turn.currentPlayerId,
+                turnNumber: newState.turn.turnNumber,
+            },
+        });
+        return { newState, events };
     }
     // =========================================================================
     //  JAIL actions — stubs
@@ -463,60 +772,109 @@ class ActionProcessor {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate POST_ROLL phase, color group monopoly, even build rule, bank supply
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleBuildHouse(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleBuildHouse');
+    handleBuildHouse(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.BUILD_HOUSE) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = PropertyTransactionPlanner_js_1.PropertyTransactionPlanner.planBuildHouse(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = PropertyManagementEngine_js_1.PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     validateBuildHotel(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate POST_ROLL phase, 4 houses present, bank supply
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleBuildHotel(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleBuildHotel');
+    handleBuildHotel(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.BUILD_HOTEL) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = PropertyTransactionPlanner_js_1.PropertyTransactionPlanner.planBuildHotel(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = PropertyManagementEngine_js_1.PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     validateSellHouse(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate POST_ROLL phase, player owns house, even-build rule
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleSellHouse(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleSellHouse');
+    handleSellHouse(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.SELL_HOUSE) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = PropertyTransactionPlanner_js_1.PropertyTransactionPlanner.planSellHouse(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = PropertyManagementEngine_js_1.PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     validateSellHotel(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleSellHotel(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleSellHotel');
+    handleSellHotel(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.SELL_HOTEL) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = PropertyTransactionPlanner_js_1.PropertyTransactionPlanner.planSellHotel(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = PropertyManagementEngine_js_1.PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     validateMortgageProperty(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate POST_ROLL phase, player owns unmortgaged property, no buildings
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleMortgageProperty(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleMortgageProperty');
+    handleMortgageProperty(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.MORTGAGE_PROPERTY) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = MortgagePlanner_js_1.MortgagePlanner.planMortgageProperty(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = MortgageEngine_js_1.MortgageEngine.applyMortgagePlan(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     validateUnmortgageProperty(state, _action, _config, actingPlayerId) {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        // TODO: Validate POST_ROLL phase, player owns mortgaged property, has funds
+        if (!(0, PhaseUtils_js_1.canManageProperties)(state)) {
+            return fail(shared_1.ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+        }
         return ok();
     }
-    handleUnmortgageProperty(_state, _action, _config, _actingPlayerId) {
-        throw new errors_js_1.EngineNotImplementedError('ActionProcessor.handleUnmortgageProperty');
+    handleUnmortgageProperty(state, action, config, actingPlayerId) {
+        if (action.type !== shared_1.ActionType.UNMORTGAGE_PROPERTY) {
+            throw new errors_js_1.EngineStateCorruptionError('Invalid action type for handler');
+        }
+        const plan = MortgagePlanner_js_1.MortgagePlanner.planUnmortgageProperty(state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs);
+        const result = MortgageEngine_js_1.MortgageEngine.applyMortgagePlan(state, plan, config, actingPlayerId);
+        const postDebt = DebtResolutionEngine_js_1.DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+        return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
     }
     // =========================================================================
     //  TRADE actions — stubs

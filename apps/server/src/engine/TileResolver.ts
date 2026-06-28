@@ -39,6 +39,7 @@ import type {
   TileId,
   PendingDecision,
   JailState,
+  PendingCard,
 } from '@monopoly/shared';
 import type { MapConfig, Tile } from '@monopoly/shared';
 import type {
@@ -628,10 +629,20 @@ export class TileResolver {
       deckType,
     };
 
+    const pendingCard: PendingCard = {
+      cardId,
+      deckType,
+      playerId: actingPlayerId,
+      drawSequence: state.rngState.counter,
+      timestamp: action.clientTs,
+      removedFromDeck: false,
+    };
+
     const newState: GameState = {
       ...state,
       rngState,
       cardDecks: newDecks,
+      pendingCard,
       turn: {
         ...state.turn,
         phase: TurnPhase.CARD_DRAWN,

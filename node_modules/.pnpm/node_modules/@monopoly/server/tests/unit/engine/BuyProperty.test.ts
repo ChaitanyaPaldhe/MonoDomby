@@ -431,7 +431,7 @@ describe('BUY_PROPERTY action', () => {
       };
       const result = engine.validate(state, buyAction(), mapConfig, PLAYER_1);
       expect(result.valid).toBe(false);
-      expect((result as any).code).toBe(ErrorCode.E_INSUFFICIENT_FUNDS);
+      expect((result as any).code).toBe(ErrorCode.E_DEBT_RECOVERY);
     });
   });
 

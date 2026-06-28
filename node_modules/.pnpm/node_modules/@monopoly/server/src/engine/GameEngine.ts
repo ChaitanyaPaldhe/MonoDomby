@@ -328,6 +328,7 @@ export class GameEngine {
       board,
       bank,
       cardDecks,
+      pendingCard: null,
       auction: null,
       activeTrades: {} as Readonly<Record<TradeId, TradeState>>,
       turn,
@@ -439,6 +440,11 @@ export class GameEngine {
           goojf: p?.getOutOfJailCards ?? 0,
         };
       }),
+      pc: state.pendingCard ? {
+        id: state.pendingCard.cardId,
+        seq: state.pendingCard.drawSequence,
+        del: state.pendingCard.removedFromDeck,
+      } : null,
       // Tiles sorted by ID for stable ordering regardless of insertion order
       tiles: Object.entries(state.board.tiles)
         .sort(([a], [b]) => a.localeCompare(b))

@@ -1,78 +1,61 @@
 // =============================================================================
 // engine/CardEngine.ts
 // Chance and Community Chest card subsystem.
-//
-// Design:
-// - Card decks are stored as ordered arrays in GameState.cardDecks.
-// - Drawing is deterministic: pop from front, push to discard.
-// - Shuffling uses DiceEngine.shuffle() to stay PRNG-deterministic.
-// - All card effects are driven by CardConfig.effect — no hardcoded effects.
-// - Custom card effects are dispatched to CardHandlerRegistry.
 // =============================================================================
 
-import { CardDeckType, CardEffectType } from '@monopoly/shared';
-import type { GameState, PlayerId, RNGState, CardDeckState } from '@monopoly/shared';
-import type { MapConfig, CardConfig } from '@monopoly/shared';
-import type { EngineResult, CardHandler } from './types.js';
+import { CardDeckType, CardEffectType, EventType } from '@monopoly/shared';
+import type {
+  GameState,
+  PlayerId,
+  RNGState,
+  CardDeckState,
+  MapConfig,
+  CardConfig,
+  ClientAction,
+  CardAppliedEvent
+} from '@monopoly/shared';
+import type { EngineResult } from './types.js';
 import { DiceEngine } from './DiceEngine.js';
-import { EngineNotImplementedError } from './errors.js';
-
-// ---------------------------------------------------------------------------
-// CardHandlerRegistry
-// ---------------------------------------------------------------------------
-
-/**
- * Registry for custom card handlers (CardEffectType.CUSTOM).
- * Maps customHandler ID → handler function.
- *
- * Built-in card effects (COLLECT_FROM_BANK, MOVE_TO_TILE, etc.)
- * are handled inline by CardEngine.applyEffect — they are NOT in this registry.
- */
-export class CardHandlerRegistry {
-  private readonly handlers = new Map<string, CardHandler>();
-
-  register(handler: CardHandler): this {
-    this.handlers.set(handler.id, handler);
-    return this;
-  }
-
-  get(id: string): CardHandler | undefined {
-    return this.handlers.get(id);
-  }
-
-  has(id: string): boolean {
-    return this.handlers.has(id);
-  }
-}
+import { EngineStateCorruptionError, EngineNotImplementedError } from './errors.js';
+import { CardEffectRegistry } from './CardEffectRegistry.js';
+import * as Handlers from './CardHandlers.js';
+import { createHash } from 'node:crypto';
+import type { TileResolver } from './TileResolver.js';
 
 // ---------------------------------------------------------------------------
 // CardEngine
 // ---------------------------------------------------------------------------
 
-/**
- * Manages Chance and Community Chest card decks.
- *
- * All operations return new GameState — no mutation.
- */
 export class CardEngine {
-  private readonly handlerRegistry: CardHandlerRegistry;
+  private readonly registry: CardEffectRegistry;
 
-  constructor(handlerRegistry: CardHandlerRegistry = new CardHandlerRegistry()) {
-    this.handlerRegistry = handlerRegistry;
+  constructor(customRegistry?: CardEffectRegistry) {
+    if (customRegistry) {
+      this.registry = customRegistry;
+    } else {
+      this.registry = new CardEffectRegistry();
+      this.registerDefaultHandlers();
+    }
+  }
+
+  private registerDefaultHandlers() {
+    this.registry.register(CardEffectType.COLLECT_FROM_BANK, Handlers.applyCollectFromBank);
+    this.registry.register(CardEffectType.PAY_TO_BANK, Handlers.applyPayToBank);
+    this.registry.register(CardEffectType.COLLECT_FROM_PLAYERS, Handlers.applyCollectFromPlayers);
+    this.registry.register(CardEffectType.PAY_TO_PLAYERS, Handlers.applyPayToPlayers);
+    this.registry.register(CardEffectType.MOVE_TO_TILE, Handlers.applyMoveToTile);
+    this.registry.register(CardEffectType.MOVE_FORWARD, Handlers.applyMoveForward);
+    this.registry.register(CardEffectType.MOVE_BACKWARD, Handlers.applyMoveBackward);
+    this.registry.register(CardEffectType.MOVE_TO_NEAREST, Handlers.applyMoveToNearest);
+    this.registry.register(CardEffectType.GO_TO_JAIL, Handlers.applyGoToJail);
+    this.registry.register(CardEffectType.GET_OUT_OF_JAIL_FREE, Handlers.applyGetOutOfJailFree);
+    this.registry.register(CardEffectType.REPAIRS, Handlers.applyRepairs);
   }
 
   // -------------------------------------------------------------------------
   // Deck Initialisation
   // -------------------------------------------------------------------------
 
-  /**
-   * Build initial shuffled CardDeckState from MapConfig.
-   * Called once at game start.
-   *
-   * @param mapConfig - Map configuration containing card definitions.
-   * @param rngState - Initial RNG state (will be advanced by shuffle).
-   * @returns [CardDeckState, nextRNGState]
-   */
   buildInitialDecks(
     mapConfig: MapConfig,
     rngState: RNGState,
@@ -94,192 +77,69 @@ export class CardEngine {
   }
 
   // -------------------------------------------------------------------------
-  // Drawing
+  // Execution
   // -------------------------------------------------------------------------
 
   /**
-   * Draw the top card from the specified deck.
-   * If the draw pile is empty, reshuffles the discard pile to replenish it.
-   *
-   * @returns [CardConfig, newCardDeckState, nextRNGState]
-   * @throws Error if no cards are defined in MapConfig for this deck type.
+   * Executes the drawn card using the registry.
+   * This is called when the player sends APPLY_CARD during the CARD_DRAWN phase.
    */
-  draw(
-    deckType: CardDeckType,
+  executeCard(
     state: GameState,
+    action: ClientAction,
     mapConfig: MapConfig,
-  ): [CardConfig, CardDeckState, RNGState] {
-    const decks = state.cardDecks;
-    let rngState = state.rngState;
-
-    // Select the correct pile
-    const drawPile = deckType === CardDeckType.CHANCE
-      ? [...decks.chance]
-      : [...decks.communityChest];
-    const discardPile = deckType === CardDeckType.CHANCE
-      ? [...decks.chanceDiscard]
-      : [...decks.communityChestDiscard];
-
-    // Reshuffle if draw pile is empty
-    if (drawPile.length === 0) {
-      const [reshuffled, nextRng] = DiceEngine.shuffle(discardPile, rngState);
-      rngState = nextRng;
-      drawPile.push(...reshuffled);
-      discardPile.length = 0;
-    }
-
-    const cardId = drawPile.shift();
-    if (!cardId) {
-      throw new Error(`[CARD_ENGINE] No cards available in ${deckType} deck.`);
-    }
-
-    const cardConfig = this.findCard(cardId, deckType, mapConfig);
-    discardPile.push(cardId);
-
-    const newDecks: CardDeckState = deckType === CardDeckType.CHANCE
-      ? { ...decks, chance: drawPile, chanceDiscard: discardPile }
-      : { ...decks, communityChest: drawPile, communityChestDiscard: discardPile };
-
-    return [cardConfig, newDecks, rngState];
-  }
-
-  /**
-   * Remove a Get Out Of Jail Free card from the discard pile
-   * when a player uses one (returned to discard, not given back to deck).
-   *
-   * TODO: Implement — find and remove the GOOJF card from wherever it is.
-   * GOOJF cards can be held by players; this handles the return-on-use.
-   */
-  returnJailCard(deckType: CardDeckType, state: GameState): GameState {
-    // TODO: Implement
-    throw new EngineNotImplementedError('CardEngine.returnJailCard');
-  }
-
-  // -------------------------------------------------------------------------
-  // Effect Application
-  // -------------------------------------------------------------------------
-
-  /**
-   * Apply a card's effect to the game state.
-   * Dispatches based on CardConfig.effect.type.
-   *
-   * Each effect type has its own handler. All return EngineResult.
-   *
-   * @param state - Current state (AFTER card has been drawn from deck).
-   * @param cardConfig - The drawn card's configuration.
-   * @param playerId - Player who drew the card.
-   * @param mapConfig - Map configuration.
-   */
-  applyEffect(
-    state: GameState,
-    cardConfig: CardConfig,
-    playerId: PlayerId,
-    mapConfig: MapConfig,
+    actingPlayerId: PlayerId,
+    tileResolver: TileResolver
   ): EngineResult {
-    const { effect } = cardConfig;
-
-    switch (effect.type) {
-      case CardEffectType.COLLECT_FROM_BANK:
-        return this.applyCollectFromBank(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.PAY_TO_BANK:
-        return this.applyPayToBank(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.COLLECT_FROM_PLAYERS:
-        return this.applyCollectFromPlayers(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.PAY_TO_PLAYERS:
-        return this.applyPayToPlayers(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.MOVE_TO_TILE:
-        return this.applyMoveToTile(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.MOVE_FORWARD:
-        return this.applyMoveForward(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.MOVE_BACKWARD:
-        return this.applyMoveBackward(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.MOVE_TO_NEAREST:
-        return this.applyMoveToNearest(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.GO_TO_JAIL:
-        return this.applyGoToJail(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.GET_OUT_OF_JAIL_FREE:
-        return this.applyGetOutOfJailFree(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.REPAIRS:
-        return this.applyRepairs(state, cardConfig, playerId, mapConfig);
-      case CardEffectType.CUSTOM:
-        return this.applyCustomEffect(state, cardConfig, playerId, mapConfig);
-      default: {
-        const _exhaustive: never = effect.type;
-        throw new Error(`[CARD_ENGINE] Unknown card effect type: ${String(_exhaustive)}`);
-      }
+    const pendingCard = state.pendingCard;
+    if (!pendingCard) {
+      throw new EngineStateCorruptionError('CardEngine: No pending card found in GameState.');
     }
-  }
 
-  // -------------------------------------------------------------------------
-  // Effect Handler Stubs
-  // -------------------------------------------------------------------------
-
-  /** TODO: Player receives amount from bank. */
-  private applyCollectFromBank(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyCollectFromBank');
-  }
-
-  /** TODO: Player pays amount to bank. Trigger bankruptcy if insufficient. */
-  private applyPayToBank(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyPayToBank');
-  }
-
-  /** TODO: Player collects amount from every other player. */
-  private applyCollectFromPlayers(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyCollectFromPlayers');
-  }
-
-  /** TODO: Player pays amount to every other player. */
-  private applyPayToPlayers(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyPayToPlayers');
-  }
-
-  /** TODO: Move player directly to a specific tile ID. Award GO reward if passed. */
-  private applyMoveToTile(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyMoveToTile');
-  }
-
-  /** TODO: Advance player N steps forward. Award GO reward if passed. */
-  private applyMoveForward(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyMoveForward');
-  }
-
-  /** TODO: Move player N steps backward. Do NOT award GO reward. */
-  private applyMoveBackward(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyMoveBackward');
-  }
-
-  /** TODO: Advance player to nearest RAILROAD or UTILITY. Award GO reward if passed. */
-  private applyMoveToNearest(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyMoveToNearest');
-  }
-
-  /** TODO: Send player directly to jail. No doubles needed. */
-  private applyGoToJail(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyGoToJail');
-  }
-
-  /** TODO: Add 1 Get Out Of Jail Free card to player's hand. */
-  private applyGetOutOfJailFree(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyGetOutOfJailFree');
-  }
-
-  /** TODO: Charge player repair costs per house and hotel across all owned properties. */
-  private applyRepairs(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    throw new EngineNotImplementedError('CardEngine.applyRepairs');
-  }
-
-  /** TODO: Dispatch to custom handler from CardHandlerRegistry. */
-  private applyCustomEffect(state: GameState, card: CardConfig, playerId: PlayerId, config: MapConfig): EngineResult {
-    const handlerId = card.effect.customHandler;
-    if (!handlerId) {
-      throw new Error(`[CARD_ENGINE] Card '${card.id}' has CUSTOM effect type but no customHandler ID.`);
+    if (pendingCard.playerId !== actingPlayerId) {
+      throw new EngineStateCorruptionError('CardEngine: APPLY_CARD acting player does not match pending card player.');
     }
-    const handler = this.handlerRegistry.get(handlerId);
-    if (!handler) {
-      throw new Error(`[CARD_ENGINE] No handler registered for customHandler '${handlerId}'.`);
+
+    const cardConfig = this.findCard(pendingCard.cardId, pendingCard.deckType, mapConfig);
+
+    let executor = this.registry.get(cardConfig.effect.type);
+    if (cardConfig.effect.type === CardEffectType.CUSTOM && cardConfig.effect.customHandler) {
+      executor = this.registry.getCustom(cardConfig.effect.customHandler);
     }
-    return handler.handle(state, playerId, card.id, config);
+
+    if (!executor) {
+      throw new Error(`[CARD_ENGINE] No handler registered for effect type: ${cardConfig.effect.type}`);
+    }
+
+    // Call the effect handler
+    const result = executor(state, cardConfig, actingPlayerId, mapConfig, action, tileResolver);
+
+    // After effect application, we need to clear pendingCard.
+    // Also, emit CARD_APPLIED event.
+    const eventId = createHash('sha256').update(`${action.actionId}:card-applied`).digest('hex');
+    const appliedEvent: CardAppliedEvent = {
+      id: eventId,
+      type: EventType.CARD_APPLIED,
+      roomId: action.roomId,
+      gameId: state.id,
+      ts: action.clientTs,
+      payload: {
+        playerId: actingPlayerId,
+        cardId: cardConfig.id,
+        effectType: cardConfig.effect.type,
+      },
+      audience: { type: 'ALL' },
+    };
+
+    const finalState = {
+      ...result.newState,
+      pendingCard: null,
+    };
+
+    return {
+      newState: finalState,
+      events: [appliedEvent, ...result.events],
+    };
   }
 
   // -------------------------------------------------------------------------

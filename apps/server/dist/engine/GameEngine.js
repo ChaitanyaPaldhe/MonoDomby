@@ -110,10 +110,18 @@ class GameEngine {
         if (winResult.won) {
             // Step 5: Transition to ENDED
             const endedState = this.stateMachine.transitionGame(stateAfterRules, shared_1.GamePhase.ENDED);
+            const finalState = {
+                ...endedState,
+                checksum: GameEngine.computeChecksum(endedState),
+            };
             // TODO: Build full GAME_ENDED event with final standings
-            return { newState: endedState, events: [...intermediate.events] };
+            return { newState: finalState, events: [...intermediate.events] };
         }
-        return { newState: stateAfterRules, events: intermediate.events };
+        const finalState = {
+            ...stateAfterRules,
+            checksum: GameEngine.computeChecksum(stateAfterRules),
+        };
+        return { newState: finalState, events: intermediate.events };
     }
     /**
      * Validate an action without applying it.
@@ -242,6 +250,7 @@ class GameEngine {
             board,
             bank,
             cardDecks,
+            pendingCard: null,
             auction: null,
             activeTrades: {},
             turn,
@@ -343,6 +352,11 @@ class GameEngine {
                     goojf: p?.getOutOfJailCards ?? 0,
                 };
             }),
+            pc: state.pendingCard ? {
+                id: state.pendingCard.cardId,
+                seq: state.pendingCard.drawSequence,
+                del: state.pendingCard.removedFromDeck,
+            } : null,
             // Tiles sorted by ID for stable ordering regardless of insertion order
             tiles: Object.entries(state.board.tiles)
                 .sort(([a], [b]) => a.localeCompare(b))

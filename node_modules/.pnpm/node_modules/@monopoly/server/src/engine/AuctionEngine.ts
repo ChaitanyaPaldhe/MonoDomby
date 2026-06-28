@@ -166,7 +166,7 @@ export class AuctionEngine {
       throw new EngineValidationError(`Bid must be at least ${minRequiredBid}`, ErrorCode.E_BID_TOO_LOW);
     }
     if (player.money < amount) {
-      throw new EngineValidationError('Insufficient funds', ErrorCode.E_INSUFFICIENT_FUNDS);
+      throw new EngineValidationError('Insufficient funds', ErrorCode.E_DEBT_RECOVERY);
     }
 
     let endsAt = auction.endsAt;

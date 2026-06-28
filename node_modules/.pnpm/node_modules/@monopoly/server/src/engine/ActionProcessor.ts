@@ -59,6 +59,15 @@ import { DiceEngine } from './DiceEngine.js';
 import type { DiceRollResult } from './DiceEngine.js';
 import { StateMachine } from './StateMachine.js';
 import { AuctionEngine } from './AuctionEngine.js';
+import { CardEngine } from './CardEngine.js';
+import { canManageProperties } from './utils/PhaseUtils.js';
+import { PropertyTransactionPlanner } from './PropertyTransactionPlanner.js';
+import { PropertyManagementEngine } from './PropertyManagementEngine.js';
+import { MortgagePlanner } from './MortgagePlanner.js';
+import { MortgageEngine } from './MortgageEngine.js';
+import { BankruptcyPlanner } from './BankruptcyPlanner.js';
+import { BankruptcyEngine } from './BankruptcyEngine.js';
+import { DebtResolutionEngine } from './DebtResolutionEngine.js';
 
 // ---------------------------------------------------------------------------
 // Internal helper types
@@ -96,6 +105,7 @@ export class ActionProcessor {
   private readonly validators = new Map<ActionType, InternalValidator>();
   private readonly handlers = new Map<ActionType, InternalHandler>();
   private readonly tileResolver: TileResolver;
+  private readonly cardEngine: CardEngine;
 
   private auctionEngine = new AuctionEngine();
 
@@ -109,6 +119,7 @@ export class ActionProcessor {
     customTileHandlers?: ReadonlyMap<string, import('./TileResolver.js').CustomTileHandlerFn>,
   ) {
     this.tileResolver = new TileResolver(customTileHandlers);
+    this.cardEngine = new CardEngine();
     this.registerValidators();
     this.registerHandlers();
   }
@@ -186,6 +197,7 @@ export class ActionProcessor {
     this.validators.set(ActionType.BUY_PROPERTY, this.validateBuyProperty.bind(this));
     this.validators.set(ActionType.DECLINE_PROPERTY, this.validateDeclineProperty.bind(this));
     this.validators.set(ActionType.END_TURN, this.validateEndTurn.bind(this));
+    this.validators.set(ActionType.APPLY_CARD, this.validateApplyCard.bind(this));
 
     // Jail
     this.validators.set(ActionType.PAY_JAIL_FINE, this.validatePayJailFine.bind(this));
@@ -213,6 +225,9 @@ export class ActionProcessor {
 
     // System
     this.validators.set(ActionType.REQUEST_FULL_STATE, this.validateRequestFullState.bind(this));
+    
+    // Bankruptcy
+    this.validators.set(ActionType.DECLARE_BANKRUPTCY, this.validateDeclareBankruptcy.bind(this));
   }
 
   // -------------------------------------------------------------------------
@@ -230,6 +245,7 @@ export class ActionProcessor {
     this.handlers.set(ActionType.BUY_PROPERTY, this.handleBuyProperty.bind(this));
     this.handlers.set(ActionType.DECLINE_PROPERTY, this.handleDeclineProperty.bind(this));
     this.handlers.set(ActionType.END_TURN, this.handleEndTurn.bind(this));
+    this.handlers.set(ActionType.APPLY_CARD, this.handleApplyCard.bind(this));
 
     // Jail
     this.handlers.set(ActionType.PAY_JAIL_FINE, this.handlePayJailFine.bind(this));
@@ -257,6 +273,9 @@ export class ActionProcessor {
 
     // System
     this.handlers.set(ActionType.REQUEST_FULL_STATE, this.handleRequestFullState.bind(this));
+    
+    // Bankruptcy
+    this.handlers.set(ActionType.DECLARE_BANKRUPTCY, this.handleDeclareBankruptcy.bind(this));
   }
 
   // =========================================================================
@@ -525,6 +544,50 @@ export class ActionProcessor {
   }
 
   // =========================================================================
+  //  Cards
+  // =========================================================================
+
+  private validateApplyCard(
+    state: GameState,
+    _action: ClientAction,
+    _config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): ValidationResult {
+    if (state.phase !== GamePhase.IN_PROGRESS) {
+      return fail(ErrorCode.E_GAME_NOT_STARTED, 'Game is not in progress.');
+    }
+    if (state.turn.currentPlayerId !== actingPlayerId) {
+      return fail(ErrorCode.E_NOT_YOUR_TURN, 'It is not your turn.');
+    }
+    if (state.turn.phase !== TurnPhase.CARD_DRAWN) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot apply card outside CARD_DRAWN phase.');
+    }
+    if (!state.pendingCard) {
+      return fail(ErrorCode.E_INVALID_ACTION, 'No pending card to apply.');
+    }
+    if (state.pendingCard.playerId !== actingPlayerId) {
+      return fail(ErrorCode.E_INVALID_ACTION, 'Pending card belongs to another player.');
+    }
+    return ok();
+  }
+
+  private handleApplyCard(
+    state: GameState,
+    action: ClientAction,
+    mapConfig: MapConfig,
+    actingPlayerId: PlayerId,
+  ): EngineResult {
+    const result = this.cardEngine.executeCard(state, action, mapConfig, actingPlayerId, this.tileResolver);
+    return {
+      newState: {
+        ...result.newState,
+        version: state.version + 1,
+      },
+      events: result.events,
+    };
+  }
+
+  // =========================================================================
   //  ROOM actions — stubs
   // =========================================================================
 
@@ -586,6 +649,35 @@ export class ActionProcessor {
   }
 
   // =========================================================================
+  //  BANKRUPTCY actions
+  // =========================================================================
+
+  private validateDeclareBankruptcy(
+    state: GameState,
+    _action: ClientAction,
+    _config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): ValidationResult {
+    const base = this.baseGameplayValidation(state, actingPlayerId);
+    if (!base.valid) return base;
+    return ok();
+  }
+
+  private handleDeclareBankruptcy(
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): EngineResult {
+    if (action.type !== ActionType.DECLARE_BANKRUPTCY) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = BankruptcyPlanner.planBankruptcy(state, config, actingPlayerId, action.actionId, action.clientTs);
+    const { newState, events } = BankruptcyEngine.executeBankruptcyPlan(state, plan, config, action.actionId, action.clientTs);
+    return { newState: { ...newState, version: state.version + 1 }, events };
+  }
+
+  // =========================================================================
   //  BUY_PROPERTY — stub
   // =========================================================================
 
@@ -639,7 +731,7 @@ export class ActionProcessor {
     }
 
     if (player.money < price) {
-      return fail(ErrorCode.E_INSUFFICIENT_FUNDS, `Insufficient funds to buy ${tileId}`);
+      return fail(ErrorCode.E_DEBT_RECOVERY, `Insufficient funds to buy ${tileId}`);
     }
 
     return ok();
@@ -1036,17 +1128,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate POST_ROLL phase, color group monopoly, even build rule, bank supply
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleBuildHouse(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleBuildHouse');
+    if (action.type !== ActionType.BUILD_HOUSE) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = PropertyTransactionPlanner.planBuildHouse(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   private validateBuildHotel(
@@ -1057,17 +1159,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate POST_ROLL phase, 4 houses present, bank supply
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleBuildHotel(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleBuildHotel');
+    if (action.type !== ActionType.BUILD_HOTEL) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = PropertyTransactionPlanner.planBuildHotel(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   private validateSellHouse(
@@ -1078,17 +1190,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate POST_ROLL phase, player owns house, even-build rule
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleSellHouse(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleSellHouse');
+    if (action.type !== ActionType.SELL_HOUSE) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = PropertyTransactionPlanner.planSellHouse(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   private validateSellHotel(
@@ -1099,16 +1221,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleSellHotel(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleSellHotel');
+    if (action.type !== ActionType.SELL_HOTEL) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = PropertyTransactionPlanner.planSellHotel(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = PropertyManagementEngine.applyTransaction(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   private validateMortgageProperty(
@@ -1119,17 +1252,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate POST_ROLL phase, player owns unmortgaged property, no buildings
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleMortgageProperty(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleMortgageProperty');
+    if (action.type !== ActionType.MORTGAGE_PROPERTY) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = MortgagePlanner.planMortgageProperty(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = MortgageEngine.applyMortgagePlan(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   private validateUnmortgageProperty(
@@ -1140,17 +1283,27 @@ export class ActionProcessor {
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate POST_ROLL phase, player owns mortgaged property, has funds
+    if (!canManageProperties(state)) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'Cannot manage properties right now.');
+    }
     return ok();
   }
 
   private handleUnmortgageProperty(
-    _state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleUnmortgageProperty');
+    if (action.type !== ActionType.UNMORTGAGE_PROPERTY) {
+      throw new EngineStateCorruptionError('Invalid action type for handler');
+    }
+    const plan = MortgagePlanner.planUnmortgageProperty(
+      state, config, action.payload.tileId, actingPlayerId, action.actionId, action.clientTs
+    );
+    const result = MortgageEngine.applyMortgagePlan(state, plan, config, actingPlayerId);
+    const postDebt = DebtResolutionEngine.checkAndSettleDebt(result.newState, config, action.actionId, action.clientTs);
+    return { newState: { ...postDebt.newState, version: state.version + 1 }, events: [...result.events, ...postDebt.events] };
   }
 
   // =========================================================================

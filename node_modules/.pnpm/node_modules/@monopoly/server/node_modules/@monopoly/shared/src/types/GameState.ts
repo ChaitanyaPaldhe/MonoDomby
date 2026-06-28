@@ -280,14 +280,7 @@ export type PendingDecision =
       readonly availableOptions: ReadonlyArray<'PAY_FINE' | 'USE_CARD' | 'ROLL'>;
     }
   | {
-      readonly type: DecisionType.BANKRUPTCY;
-      /** The player or bank that is owed money. Null = owed to bank. */
-      readonly creditorId: PlayerId | null;
-      /** Total amount that must be raised or debt remains unserviceable. */
-      readonly amountOwed: number;
-    }
-  | {
-      readonly type: DecisionType.INSUFFICIENT_FUNDS;
+      readonly type: DecisionType.DEBT_RECOVERY;
       /** The player or bank that is owed money. Null = owed to bank. */
       readonly creditorId: PlayerId | null;
       /** Total amount that must be raised. */
@@ -300,6 +293,24 @@ export type PendingDecision =
     };
 
 // ---------------------------------------------------------------------------
+// Pending Card
+// ---------------------------------------------------------------------------
+
+/**
+ * Stores a drawn card before it is explicitly applied via APPLY_CARD action.
+ * Exists at the root GameState to persist across disconnects during CARD_DRAWN phase.
+ */
+export interface PendingCard {
+  readonly cardId: string;
+  readonly deckType: CardDeckType;
+  readonly playerId: PlayerId;
+  readonly drawSequence: number;
+  readonly timestamp: number;
+  readonly removedFromDeck: boolean;
+}
+
+// ---------------------------------------------------------------------------
+
 // Turn State
 // ---------------------------------------------------------------------------
 
@@ -430,6 +441,8 @@ export interface GameState {
 
   // --- Cards ---
   readonly cardDecks: CardDeckState;
+  /** Present when a card has been drawn but not yet applied. */
+  readonly pendingCard: PendingCard | null;
 
   // --- Active Subsystems ---
   /** Present when an auction is in progress. Null otherwise. */

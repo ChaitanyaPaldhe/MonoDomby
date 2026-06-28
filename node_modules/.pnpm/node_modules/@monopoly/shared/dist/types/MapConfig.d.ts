@@ -217,6 +217,8 @@ export interface RulesConfig {
     readonly doublesForJailRelease: boolean;
     /** House rule: tax payments accumulate on Free Parking and are won by the next player to land there. Default: false. */
     readonly freeParkingMoney: boolean;
+    /** Multiplier for the value of mortgaged properties in net worth calculation (e.g. 0.5 = half mortgage value). Default: 0.5. */
+    readonly mortgagedPropertyValuation: number;
     /** If true, bankrupt player's assets go to the bank, not the creditor. Default: false. */
     readonly bankruptcyToBank: boolean;
     /** Victory condition variant. */

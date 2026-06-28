@@ -159,7 +159,7 @@ export declare enum JailReason {
 export declare enum ErrorCode {
     E_NOT_YOUR_TURN = "E_NOT_YOUR_TURN",
     E_INVALID_PHASE = "E_INVALID_PHASE",
-    E_INSUFFICIENT_FUNDS = "E_INSUFFICIENT_FUNDS",
+    E_DEBT_RECOVERY = "E_DEBT_RECOVERY",
     E_PROPERTY_NOT_OWNED = "E_PROPERTY_NOT_OWNED",
     E_PROPERTY_OWNED = "E_PROPERTY_OWNED",
     E_EVEN_BUILD_VIOLATION = "E_EVEN_BUILD_VIOLATION",
@@ -200,8 +200,7 @@ export declare enum RoomStatus {
 export declare enum DecisionType {
     PURCHASE = "PURCHASE",
     JAIL = "JAIL",
-    BANKRUPTCY = "BANKRUPTCY",
-    CARD_EFFECT = "CARD_EFFECT",
-    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
+    DEBT_RECOVERY = "DEBT_RECOVERY",
+    CARD_EFFECT = "CARD_EFFECT"
 }
 //# sourceMappingURL=Enums.d.ts.map

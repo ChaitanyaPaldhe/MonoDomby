@@ -22,7 +22,8 @@ const errors_js_1 = require("./errors.js");
 const GAME_TRANSITIONS = {
     [shared_1.GamePhase.LOBBY]: new Set([shared_1.GamePhase.STARTING]),
     [shared_1.GamePhase.STARTING]: new Set([shared_1.GamePhase.IN_PROGRESS]),
-    [shared_1.GamePhase.IN_PROGRESS]: new Set([shared_1.GamePhase.ENDED]),
+    [shared_1.GamePhase.IN_PROGRESS]: new Set([shared_1.GamePhase.AUCTION, shared_1.GamePhase.ENDED]),
+    [shared_1.GamePhase.AUCTION]: new Set([shared_1.GamePhase.IN_PROGRESS, shared_1.GamePhase.ENDED]),
     [shared_1.GamePhase.ENDED]: new Set(),
 };
 /**

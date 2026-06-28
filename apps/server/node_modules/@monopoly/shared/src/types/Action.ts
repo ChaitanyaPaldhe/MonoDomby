@@ -38,6 +38,8 @@ export enum ActionType {
   DECLINE_PROPERTY = 'DECLINE_PROPERTY',
   /** Player ends their turn. Only valid in POST_ROLL phase. */
   END_TURN = 'END_TURN',
+  /** Player applies a drawn Chance/Community Chest card. */
+  APPLY_CARD = 'APPLY_CARD',
 
   // Jail
   /** Player pays the jail fine to be released immediately. */
@@ -200,6 +202,7 @@ export type RollDiceAction = BaseAction<ActionType.ROLL_DICE>;
 export type BuyPropertyAction = BaseAction<ActionType.BUY_PROPERTY, BuyPropertyPayload>;
 export type DeclinePropertyAction = BaseAction<ActionType.DECLINE_PROPERTY, DeclinePropertyPayload>;
 export type EndTurnAction = BaseAction<ActionType.END_TURN>;
+export type ApplyCardAction = BaseAction<ActionType.APPLY_CARD>;
 
 export type PayJailFineAction = BaseAction<ActionType.PAY_JAIL_FINE>;
 export type UseJailCardAction = BaseAction<ActionType.USE_JAIL_CARD>;
@@ -240,6 +243,7 @@ export type ClientAction =
   | BuyPropertyAction
   | DeclinePropertyAction
   | EndTurnAction
+  | ApplyCardAction
   | PayJailFineAction
   | UseJailCardAction
   | RollForDoublesAction

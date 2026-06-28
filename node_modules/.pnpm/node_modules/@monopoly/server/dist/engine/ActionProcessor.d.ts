@@ -1,8 +1,5 @@
-import type { GameState, PlayerId } from '@monopoly/shared';
-import type { ClientAction } from '@monopoly/shared';
-import type { MapConfig } from '@monopoly/shared';
+import type { GameState, PlayerId, ClientAction, MapConfig } from '@monopoly/shared';
 import type { ValidationResult, EngineResult } from './types.js';
-import type { CustomTileHandlerFn } from './TileResolver.js';
 import { StateMachine } from './StateMachine.js';
 /**
  * Validates and dispatches client actions to their handler functions.
@@ -19,12 +16,14 @@ export declare class ActionProcessor {
     private readonly validators;
     private readonly handlers;
     private readonly tileResolver;
+    private readonly cardEngine;
+    private auctionEngine;
     /**
      * @param stateMachine       Shared StateMachine instance from GameEngine.
      * @param customTileHandlers Optional map of tile-ID → handler for CUSTOM tiles.
      *                           Pass at game-start if the map has CUSTOM tile types.
      */
-    constructor(stateMachine: StateMachine, customTileHandlers?: ReadonlyMap<string, CustomTileHandlerFn>);
+    constructor(stateMachine: StateMachine, customTileHandlers?: ReadonlyMap<string, import('./TileResolver.js').CustomTileHandlerFn>);
     /**
      * Validate an action against the current state.
      * Returns ValidationResult — does NOT throw on validation failure.
@@ -93,16 +92,24 @@ export declare class ActionProcessor {
      * @param actingPlayerId JWT-verified acting player.
      */
     private resolveLandingTile;
+    private validateApplyCard;
+    private handleApplyCard;
     private validateRoomReady;
     private handleRoomReady;
     private validateRoomSettingsUpdate;
     private handleRoomSettingsUpdate;
     private validateRoomStartGame;
     private handleRoomStartGame;
+    private validateDeclareBankruptcy;
+    private handleDeclareBankruptcy;
     private validateBuyProperty;
     private handleBuyProperty;
     private validateDeclineProperty;
     private handleDeclineProperty;
+    private validatePlaceBid;
+    private handlePlaceBid;
+    private validateAuctionFold;
+    private handleAuctionFold;
     private validateEndTurn;
     private handleEndTurn;
     private validatePayJailFine;

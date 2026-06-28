@@ -188,3 +188,18 @@ export interface CreateGameParams {
   readonly rngSeed?: string;
   readonly createdAt: number;
 }
+
+export interface PropertyTransactionPlan {
+  readonly tileChanges: Record<TileId, import('@monopoly/shared').TileState>;
+  readonly bankHouseChange: number;
+  readonly bankHotelChange: number;
+  readonly playerMoneyChange: number;
+  readonly events: readonly GameEvent[];
+}
+
+export interface MortgagePlan {
+  readonly tileId: TileId;
+  readonly isMortgaging: boolean; // true if mortgaging, false if unmortgaging
+  readonly playerMoneyChange: number;
+  readonly events: readonly GameEvent[];
+}

@@ -287,7 +287,7 @@ describe('RentCalculator', () => {
 
       // Should transition to pending decision
       expect(result.newState.turn.pendingDecision).toEqual({
-        type: DecisionType.INSUFFICIENT_FUNDS,
+        type: DecisionType.DEBT_RECOVERY,
         creditorId: PLAYER_2,
         amountOwed: 10,
       });
@@ -296,7 +296,7 @@ describe('RentCalculator', () => {
       const calcEvent = result.events.find(e => e.type === EventType.RENT_CALCULATED);
       expect(calcEvent).toBeDefined();
 
-      const insufficientEvent = result.events.find(e => e.type === EventType.INSUFFICIENT_FUNDS);
+      const insufficientEvent = result.events.find(e => e.type === EventType.DEBT_RECOVERY_STARTED);
       expect(insufficientEvent).toBeDefined();
       expect(insufficientEvent?.payload).toEqual({
         playerId: PLAYER_1,

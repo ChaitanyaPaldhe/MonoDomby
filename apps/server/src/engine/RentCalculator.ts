@@ -174,7 +174,7 @@ export class RentCalculator {
         turn: {
           ...state.turn,
           pendingDecision: {
-            type: DecisionType.INSUFFICIENT_FUNDS,
+            type: DecisionType.DEBT_RECOVERY,
             creditorId: ownerId,
             amountOwed: rentAmount,
           },
@@ -185,7 +185,7 @@ export class RentCalculator {
       // Wait, is INSUFFICIENT_FUNDS an event in our GameEvent union? Yes.
       events.push({
         id: `${action.actionId}::INSUFFICIENT_FUNDS`,
-        type: EventType.INSUFFICIENT_FUNDS,
+        type: EventType.DEBT_RECOVERY_STARTED,
         roomId: state.roomId as unknown as string,
         gameId: state.id as unknown as string,
         ts: action.clientTs,

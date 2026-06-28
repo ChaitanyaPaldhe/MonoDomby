@@ -30,6 +30,7 @@ exports.TileResolver = void 0;
 const shared_1 = require("@monopoly/shared");
 const errors_js_1 = require("./errors.js");
 const DiceEngine_js_1 = require("./DiceEngine.js");
+const RentCalculator_js_1 = require("./RentCalculator.js");
 // ---------------------------------------------------------------------------
 // TileResolver
 // ---------------------------------------------------------------------------
@@ -97,11 +98,11 @@ class TileResolver {
             case shared_1.TileType.FREE_PARKING:
                 return this.resolveFreeParking(state, config);
             case shared_1.TileType.PROPERTY:
-                return this.resolveProperty(state, tile, actingPlayerId);
+                return this.resolveProperty(state, tile, config, action, actingPlayerId);
             case shared_1.TileType.RAILROAD:
-                return this.resolveRailroad(state, tile, actingPlayerId);
+                return this.resolveRailroad(state, tile, config, action, actingPlayerId);
             case shared_1.TileType.UTILITY:
-                return this.resolveUtility(state, tile, actingPlayerId);
+                return this.resolveUtility(state, tile, config, action, actingPlayerId);
             case shared_1.TileType.CHANCE:
                 return this.resolveChance(state, config, action, actingPlayerId);
             case shared_1.TileType.COMMUNITY_CHEST:
@@ -183,7 +184,7 @@ class TileResolver {
      *   - Emit RENT_PAID event.
      *   - Trigger bankruptcy check if actingPlayer cannot pay.
      */
-    resolveProperty(state, tile, actingPlayerId) {
+    resolveProperty(state, tile, config, action, actingPlayerId) {
         const tileId = tile.id;
         const tileState = state.board.tiles[tileId];
         if (!tileState) {
@@ -198,8 +199,7 @@ class TileResolver {
             return { newState: this.toPostRoll(state), events: [] };
         }
         // Another player owns it (unmortgaged) → rent due
-        // TODO: implement rent calculation
-        return { newState: this.toPostRoll(state), events: [] };
+        return RentCalculator_js_1.RentCalculator.processRent(state, tile, config, action, actingPlayerId);
     }
     // =========================================================================
     //  TileType.RAILROAD
@@ -217,7 +217,7 @@ class TileResolver {
      *   - Rent = railroadData.rents[count - 1].
      *   - Emit RENT_PAID event.
      */
-    resolveRailroad(state, tile, actingPlayerId) {
+    resolveRailroad(state, tile, config, action, actingPlayerId) {
         const tileId = tile.id;
         const tileState = state.board.tiles[tileId];
         if (!tileState) {
@@ -230,8 +230,7 @@ class TileResolver {
             return { newState: this.toPostRoll(state), events: [] };
         }
         // Another player's railroad → rent due
-        // TODO: implement railroad rent
-        return { newState: this.toPostRoll(state), events: [] };
+        return RentCalculator_js_1.RentCalculator.processRent(state, tile, config, action, actingPlayerId);
     }
     // =========================================================================
     //  TileType.UTILITY
@@ -250,7 +249,7 @@ class TileResolver {
      *   - Use state.turn.diceValues for the dice total.
      *   - Emit RENT_PAID event.
      */
-    resolveUtility(state, tile, actingPlayerId) {
+    resolveUtility(state, tile, config, action, actingPlayerId) {
         const tileId = tile.id;
         const tileState = state.board.tiles[tileId];
         if (!tileState) {
@@ -263,8 +262,7 @@ class TileResolver {
             return { newState: this.toPostRoll(state), events: [] };
         }
         // Another player's utility → rent due
-        // TODO: implement utility rent
-        return { newState: this.toPostRoll(state), events: [] };
+        return RentCalculator_js_1.RentCalculator.processRent(state, tile, config, action, actingPlayerId);
     }
     // =========================================================================
     //  TileType.CHANCE
@@ -444,10 +442,19 @@ class TileResolver {
             cardId,
             deckType,
         };
+        const pendingCard = {
+            cardId,
+            deckType,
+            playerId: actingPlayerId,
+            drawSequence: state.rngState.counter,
+            timestamp: action.clientTs,
+            removedFromDeck: false,
+        };
         const newState = {
             ...state,
             rngState,
             cardDecks: newDecks,
+            pendingCard,
             turn: {
                 ...state.turn,
                 phase: shared_1.TurnPhase.CARD_DRAWN,

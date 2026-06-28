@@ -201,7 +201,7 @@ var ErrorCode;
 (function (ErrorCode) {
     ErrorCode["E_NOT_YOUR_TURN"] = "E_NOT_YOUR_TURN";
     ErrorCode["E_INVALID_PHASE"] = "E_INVALID_PHASE";
-    ErrorCode["E_INSUFFICIENT_FUNDS"] = "E_INSUFFICIENT_FUNDS";
+    ErrorCode["E_DEBT_RECOVERY"] = "E_DEBT_RECOVERY";
     ErrorCode["E_PROPERTY_NOT_OWNED"] = "E_PROPERTY_NOT_OWNED";
     ErrorCode["E_PROPERTY_OWNED"] = "E_PROPERTY_OWNED";
     ErrorCode["E_EVEN_BUILD_VIOLATION"] = "E_EVEN_BUILD_VIOLATION";
@@ -248,8 +248,7 @@ var DecisionType;
 (function (DecisionType) {
     DecisionType["PURCHASE"] = "PURCHASE";
     DecisionType["JAIL"] = "JAIL";
-    DecisionType["BANKRUPTCY"] = "BANKRUPTCY";
+    DecisionType["DEBT_RECOVERY"] = "DEBT_RECOVERY";
     DecisionType["CARD_EFFECT"] = "CARD_EFFECT";
-    DecisionType["INSUFFICIENT_FUNDS"] = "INSUFFICIENT_FUNDS";
 })(DecisionType || (exports.DecisionType = DecisionType = {}));
 //# sourceMappingURL=Enums.js.map

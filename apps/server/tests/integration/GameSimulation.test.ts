@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { GameEngine } from '../../src/engine/GameEngine.js';
+import { PropertyTransactionPlanner } from '../../src/engine/PropertyTransactionPlanner.js';
+import { MortgagePlanner } from '../../src/engine/MortgagePlanner.js';
+import { canManageProperties } from '../../src/engine/utils/PhaseUtils.js';
+import { ErrorCode } from '@monopoly/shared';
 import {
   ActionType,
   TurnPhase,
@@ -30,7 +34,11 @@ function createSimulationMap(): MapConfig {
   for (let i = 1; i < 40; i++) {
     if (i === 10 || i === 20 || i === 30) continue;
 
-    if (i % 5 === 0) {
+    if (i === 7) {
+      tiles.push({ id: `chance-1`, index: 7, type: TileType.CHANCE, name: 'Chance' });
+    } else if (i === 22) {
+      tiles.push({ id: `cc-1`, index: 22, type: TileType.COMMUNITY_CHEST, name: 'Community Chest' });
+    } else if (i % 5 === 0) {
       tiles.push({
         id: `railroad-${i}`,
         index: i,
@@ -101,7 +109,15 @@ function createSimulationMap(): MapConfig {
       jailTileIndex: 10,
       tiles,
     },
-    cards: { chance: [], communityChest: [] },
+    cards: {
+      chance: [
+        { id: 'c1', text: 'Bank pays you $50', effect: { type: 'COLLECT_FROM_BANK', amount: 50 } as any },
+        { id: 'c2', text: 'Go Back 3 Spaces', effect: { type: 'MOVE_BACKWARD', amount: 3 } as any }
+      ],
+      communityChest: [
+        { id: 'cc1', text: 'Pay $100', effect: { type: 'PAY_TO_BANK', amount: 100 } as any }
+      ]
+    },
     rules: {
       winCondition: WinCondition.LAST_STANDING,
       auctionConfig: { durationSeconds: 30, overtimeSeconds: 10, minBidIncrement: 5 },
@@ -180,23 +196,92 @@ class BotClient {
 
     let action: ClientAction | null = null;
 
-    if (state.turn.phase === TurnPhase.PRE_ROLL) {
-      action = { actionId, clientTs, type: ActionType.ROLL_DICE, payload: {} };
-    } else if (state.turn.phase === TurnPhase.PURCHASE_DECISION) {
-      const decision = state.turn.pendingDecision;
-      if (decision?.type === DecisionType.PURCHASE) {
-        const tile = this.mapConfig.board.tiles.find(t => t.id === decision.tileId);
-        const price = (tile?.propertyData?.price ?? tile?.railroadData?.price ?? tile?.utilityData?.price) ?? 0;
-        
+    if (state.turn.phase === TurnPhase.PRE_ROLL || state.turn.phase === TurnPhase.POST_ROLL) {
+      if (canManageProperties(state)) {
         const player = state.players[pId]!;
-        if (player.money >= price) {
-          action = { actionId, clientTs, type: ActionType.BUY_PROPERTY, payload: {} };
-        } else {
-          // Fallback, we give them money so they can buy.
+
+        const isInDebt = state.turn.pendingDecision?.type === DecisionType.DEBT_RECOVERY;
+        const targetMoney = isInDebt ? state.turn.pendingDecision.amountOwed : 200;
+
+        // 1. Mortgage or sell buildings if low on cash
+        if (player.money < targetMoney) {
+          // Attempt to sell houses
+          if (!action) {
+            for (const tId of player.properties) {
+              const tileState = state.board.tiles[tId as any];
+              if (tileState?.houses && tileState.houses > 0) {
+                try {
+                  PropertyTransactionPlanner.planSellHouse(state, this.mapConfig, tId as TileId, pId, actionId, clientTs);
+                  action = { actionId, clientTs, type: ActionType.SELL_HOUSE, payload: { tileId: tId } } as any;
+                  break;
+                } catch {}
+              }
+            }
+          }
+          // Attempt to mortgage
+          if (!action) {
+            for (const tId of player.properties) {
+              const tileState = state.board.tiles[tId as any];
+              if (!tileState?.isMortgaged && tileState?.houses === 0 && !tileState?.hasHotel) {
+                try {
+                  MortgagePlanner.planMortgageProperty(state, this.mapConfig, tId as TileId, pId, actionId, clientTs);
+                  action = { actionId, clientTs, type: ActionType.MORTGAGE_PROPERTY, payload: { tileId: tId } } as any;
+                  break;
+                } catch {}
+              }
+            }
+          }
+        }
+
+        if (!action) {
+          // 2. Build if rich
+          for (const tId of player.properties) {
+            const t = this.mapConfig.board.tiles.find(x => x.id === tId);
+          if (t?.propertyData) {
+            try {
+              PropertyTransactionPlanner.planBuildHotel(state, this.mapConfig, tId as TileId, pId, actionId, clientTs);
+              action = { actionId, clientTs, type: ActionType.BUILD_HOTEL, payload: { tileId: tId } } as any;
+              break;
+            } catch {
+              try {
+                PropertyTransactionPlanner.planBuildHouse(state, this.mapConfig, tId as TileId, pId, actionId, clientTs);
+                action = { actionId, clientTs, type: ActionType.BUILD_HOUSE, payload: { tileId: tId } } as any;
+                break;
+              } catch {
+                // Ignore
+              }
+            }
+            }
+          }
         }
       }
-    } else if (state.turn.phase === TurnPhase.POST_ROLL) {
-      action = { actionId, clientTs, type: ActionType.END_TURN, payload: {} };
+    }
+
+    if (!action) {
+      if (state.turn.phase === TurnPhase.PRE_ROLL) {
+        action = { actionId, clientTs, type: ActionType.ROLL_DICE, payload: {} };
+      } else if (state.turn.phase === TurnPhase.PURCHASE_DECISION) {
+        const decision = state.turn.pendingDecision;
+        if (decision?.type === DecisionType.PURCHASE) {
+          const tile = this.mapConfig.board.tiles.find(t => t.id === decision.tileId);
+          const price = (tile?.propertyData?.price ?? tile?.railroadData?.price ?? tile?.utilityData?.price) ?? 0;
+          
+          const player = state.players[pId]!;
+          if (player.money >= price) {
+            action = { actionId, clientTs, type: ActionType.BUY_PROPERTY, payload: {} };
+          } else {
+            // Wait, we need to decline!
+            action = { actionId, clientTs, type: ActionType.DECLINE_PROPERTY, payload: {} } as any;
+          }
+        }
+      } else if (state.turn.phase === TurnPhase.CARD_DRAWN) {
+        action = { actionId, clientTs, type: ActionType.APPLY_CARD, payload: {} };
+      } else if (state.turn.pendingDecision?.type === DecisionType.DEBT_RECOVERY) {
+        // If we reach here, we have no available property management actions to raise cash.
+        action = { actionId, clientTs, type: ActionType.DECLARE_BANKRUPTCY, payload: {} } as any;
+      } else if (state.turn.phase === TurnPhase.POST_ROLL) {
+        action = { actionId, clientTs, type: ActionType.END_TURN, payload: {} };
+      }
     }
 
     if (!action) {

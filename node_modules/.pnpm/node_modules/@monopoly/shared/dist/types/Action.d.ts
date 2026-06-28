@@ -20,6 +20,8 @@ export declare enum ActionType {
     DECLINE_PROPERTY = "DECLINE_PROPERTY",
     /** Player ends their turn. Only valid in POST_ROLL phase. */
     END_TURN = "END_TURN",
+    /** Player applies a drawn Chance/Community Chest card. */
+    APPLY_CARD = "APPLY_CARD",
     /** Player pays the jail fine to be released immediately. */
     PAY_JAIL_FINE = "PAY_JAIL_FINE",
     /** Player uses a Get Out Of Jail Free card to be released. */
@@ -139,6 +141,7 @@ export type RollDiceAction = BaseAction<ActionType.ROLL_DICE>;
 export type BuyPropertyAction = BaseAction<ActionType.BUY_PROPERTY, BuyPropertyPayload>;
 export type DeclinePropertyAction = BaseAction<ActionType.DECLINE_PROPERTY, DeclinePropertyPayload>;
 export type EndTurnAction = BaseAction<ActionType.END_TURN>;
+export type ApplyCardAction = BaseAction<ActionType.APPLY_CARD>;
 export type PayJailFineAction = BaseAction<ActionType.PAY_JAIL_FINE>;
 export type UseJailCardAction = BaseAction<ActionType.USE_JAIL_CARD>;
 export type RollForDoublesAction = BaseAction<ActionType.ROLL_FOR_DOUBLES>;
@@ -161,7 +164,7 @@ export type RequestFullStateAction = BaseAction<ActionType.REQUEST_FULL_STATE>;
  * The complete union of all possible client actions.
  * Switch on `action.type` for exhaustive narrowing.
  */
-export type ClientAction = RoomReadyAction | RoomSettingsUpdateAction | RoomStartGameAction | RollDiceAction | BuyPropertyAction | DeclinePropertyAction | EndTurnAction | PayJailFineAction | UseJailCardAction | RollForDoublesAction | MortgagePropertyAction | UnmortgagePropertyAction | BuildHouseAction | SellHouseAction | BuildHotelAction | SellHotelAction | PlaceBidAction | AuctionFoldAction | TradeProposeAction | TradeCounterAction | TradeAcceptAction | TradeRejectAction | TradeCancelAction | DeclareBankruptcyAction | RequestFullStateAction;
+export type ClientAction = RoomReadyAction | RoomSettingsUpdateAction | RoomStartGameAction | RollDiceAction | BuyPropertyAction | DeclinePropertyAction | EndTurnAction | ApplyCardAction | PayJailFineAction | UseJailCardAction | RollForDoublesAction | MortgagePropertyAction | UnmortgagePropertyAction | BuildHouseAction | SellHouseAction | BuildHotelAction | SellHotelAction | PlaceBidAction | AuctionFoldAction | TradeProposeAction | TradeCounterAction | TradeAcceptAction | TradeRejectAction | TradeCancelAction | DeclareBankruptcyAction | RequestFullStateAction;
 /**
  * Utility: extract the action type for a given ActionType key.
  * @example
