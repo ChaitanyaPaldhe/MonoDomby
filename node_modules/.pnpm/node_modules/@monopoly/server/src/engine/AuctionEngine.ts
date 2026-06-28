@@ -1,58 +1,66 @@
 // =============================================================================
 // engine/AuctionEngine.ts
 // Auction subsystem.
-//
-// Design:
-// - Auctions do not block turn progression — they run as a parallel subsystem.
-// - The auction state lives in GameState.auction (null when no auction active).
-// - Timer extension logic is purely state-based: the server's AuctionTimerWorker
-//   reads GameState.auction.endsAt and triggers AUCTION_EXPIRE events.
-// - All bid validation and state updates happen here as pure functions.
 // =============================================================================
 
-import { AuctionStatus } from '@monopoly/shared';
-import type { GameState, PlayerId, TileId, AuctionState, BidEntry } from '@monopoly/shared';
-import type { MapConfig } from '@monopoly/shared';
+import {
+  ActionType,
+  AuctionBidPlacedPayload,
+  AuctionCompletePayload,
+  AuctionExtendedPayload,
+  AuctionId,
+  AuctionState,
+  AuctionStatus,
+  BidEntry,
+  ClientAction,
+  ErrorCode,
+  EventType,
+  GamePhase,
+  GameState,
+  MapConfig,
+  PlayerId,
+  PropertyAuctionedSoldPayload,
+  PropertyAuctionedStartPayload,
+  PropertyAuctionedUnsoldPayload,
+  TileId,
+} from '@monopoly/shared';
+import type { GameEvent } from '@monopoly/shared';
 import type { EngineResult } from './types.js';
-import { EngineNotImplementedError } from './errors.js';
-import { ErrorCode } from '@monopoly/shared';
-import { EngineValidationError } from './errors.js';
+import { EngineStateCorruptionError, EngineValidationError } from './errors.js';
 
-// ---------------------------------------------------------------------------
-// AuctionEngine
-// ---------------------------------------------------------------------------
-
-/**
- * Manages the auction lifecycle as a pure state transformation.
- *
- * Sequence: startAuction → [placeBid]* → endAuction
- *
- * The timer mechanism lives in the server layer (AuctionTimerWorker).
- * The engine only computes whether an extension should happen on bid placement.
- */
 export class AuctionEngine {
-  // -------------------------------------------------------------------------
-  // Auction Start
-  // -------------------------------------------------------------------------
+
+  /**
+   * Generates a deterministic Auction ID from the Tile ID and current game time.
+   */
+  private generateAuctionId(tileId: TileId, clientTs: number): AuctionId {
+    return `auction-${tileId}-${clientTs}` as AuctionId;
+  }
+
+  /**
+   * Creates a standardized EventLogEntry.
+   */
+  private createEvent<T extends EventType, P>(
+    state: GameState,
+    type: T,
+    payload: P,
+    clientTs: number,
+  ): GameEvent {
+    const id = `${state.id}-${clientTs}-${type}`;
+    return {
+      id,
+      ts: clientTs,
+      roomId: state.roomId,
+      gameId: state.id,
+      audience: { type: 'ALL' },
+      type,
+      payload,
+    } as unknown as GameEvent;
+  }
 
   /**
    * Initialise a new auction for an unowned tile.
    * Called when a player declines to purchase (and MapConfig.rules.auctionOnDecline is true).
-   *
-   * TODO: Implement.
-   *
-   * Rules:
-   * 1. The tile must be unowned and not mortgaged.
-   * 2. All non-bankrupt, connected players are participants (including the decliner).
-   * 3. Starting bid is $1 (or mapConfig minBidIncrement).
-   * 4. endsAt = now + auctionConfig.durationSeconds * 1000.
-   * 5. Emit PROPERTY_AUCTIONED_START event.
-   * 6. Set GameState.auction to the new AuctionState.
-   *
-   * @param state - Current game state (player has already declined purchase).
-   * @param tileId - The tile being auctioned.
-   * @param mapConfig - Map configuration for auction parameters.
-   * @param now - Server timestamp (unix ms).
    */
   startAuction(
     state: GameState,
@@ -60,40 +68,65 @@ export class AuctionEngine {
     mapConfig: MapConfig,
     now: number,
   ): EngineResult {
-    // TODO: Implement
-    throw new EngineNotImplementedError('AuctionEngine.startAuction');
-  }
+    const tile = mapConfig.board.tiles.find((t) => t.id === tileId);
+    if (!tile) {
+      throw new EngineStateCorruptionError(`startAuction: Tile '${tileId}' not found in MapConfig`);
+    }
 
-  // -------------------------------------------------------------------------
-  // Bid Placement
-  // -------------------------------------------------------------------------
+    const startingBid = mapConfig.rules.auctionConfig?.minBidIncrement ?? 1; 
+    const auctionConfig = mapConfig.rules.auctionConfig ?? {
+      durationSeconds: 30,
+      overtimeSeconds: 10,
+      minBidIncrement: 5,
+    };
+    
+    // Eligible participants are all non-bankrupt players
+    const activeBidders = Object.values(state.players)
+      .filter((p) => !p.isBankrupt)
+      .map((p) => p.id);
+
+    const auctionState: AuctionState = {
+      id: this.generateAuctionId(tileId, now),
+      tileId,
+      startedAt: now,
+      endsAt: now + auctionConfig.durationSeconds * 1000,
+      highestBid: 0,
+      highestBidder: null,
+      bids: [],
+      activeBidders,
+      foldedPlayers: [],
+      status: AuctionStatus.ACTIVE,
+      extensionCount: 0,
+    };
+
+    const newState: GameState = {
+      ...state,
+      phase: GamePhase.AUCTION,
+      auction: auctionState,
+      turn: {
+        ...state.turn,
+        pendingDecision: null, // Clear the PURCHASE decision
+      },
+    };
+
+    const event = this.createEvent(
+      newState,
+      EventType.PROPERTY_AUCTIONED_START,
+      { tileId, startingBid, auction: auctionState } as PropertyAuctionedStartPayload,
+      now
+    );
+
+    // Auto-resolve if nobody is eligible
+    if (activeBidders.length === 0) {
+      const emptyState = { ...newState, auction: auctionState };
+      return this.endAuction(emptyState, mapConfig, now);
+    }
+
+    return { newState, events: [event] };
+  }
 
   /**
    * Place a bid in the active auction.
-   *
-   * TODO: Implement.
-   *
-   * Validation:
-   * 1. GameState.auction must not be null.
-   * 2. auction.status must be ACTIVE or ENDING.
-   * 3. Player must be in auction.participants.
-   * 4. Player must have enough money: amount <= player.money.
-   * 5. amount must be >= auction.currentBid + mapConfig.rules.auctionConfig.minBidIncrement.
-   *
-   * State changes:
-   * 1. Append BidEntry to auction.bids.
-   * 2. Update auction.currentBid and auction.currentBidderId.
-   * 3. If remaining time <= extensionThreshold, extend endsAt by extensionSeconds.
-   *    Increment extensionCount. Cap at maxExtensions.
-   * 4. If time was extended, set status = ENDING (or keep ACTIVE).
-   * 5. Emit AUCTION_BID_PLACED event (audience: ALL).
-   * 6. Emit AUCTION_EXTENDED event if timer was extended (audience: ALL).
-   *
-   * @param state - Current game state.
-   * @param playerId - Bidding player ID.
-   * @param amount - Bid amount in game currency.
-   * @param mapConfig - Map configuration for auction parameters.
-   * @param now - Server timestamp (unix ms).
    */
   placeBid(
     state: GameState,
@@ -102,28 +135,108 @@ export class AuctionEngine {
     mapConfig: MapConfig,
     now: number,
   ): EngineResult {
-    // TODO: Implement
-    throw new EngineNotImplementedError('AuctionEngine.placeBid');
+    const auction = this.requireActiveAuction(state);
+    
+    if (!auction.activeBidders.includes(playerId)) {
+      throw new EngineValidationError('You are not an active bidder in this auction', ErrorCode.E_UNAUTHORIZED);
+    }
+
+    const player = state.players[playerId];
+    if (!player) {
+      throw new EngineStateCorruptionError(`Player ${playerId} not found`);
+    }
+
+    const auctionConfig = mapConfig.rules.auctionConfig ?? {
+      durationSeconds: 30,
+      overtimeSeconds: 10,
+      minBidIncrement: 5,
+    };
+
+    if (amount <= auction.highestBid) {
+      throw new EngineValidationError('Bid must be strictly greater than current highest bid', ErrorCode.E_BID_TOO_LOW);
+    }
+    
+    // If it's the very first bid, they just need to match the minimum start bid.
+    // Otherwise, increment by minBidIncrement
+    const minRequiredBid = auction.highestBid === 0 
+      ? auctionConfig.minBidIncrement 
+      : auction.highestBid + auctionConfig.minBidIncrement;
+      
+    if (amount < minRequiredBid) {
+      throw new EngineValidationError(`Bid must be at least ${minRequiredBid}`, ErrorCode.E_BID_TOO_LOW);
+    }
+    if (player.money < amount) {
+      throw new EngineValidationError('Insufficient funds', ErrorCode.E_INSUFFICIENT_FUNDS);
+    }
+
+    let endsAt = auction.endsAt;
+    let extensionCount = auction.extensionCount;
+    let extended = false;
+    
+    const newEndsAt = this.computeExtension(auction, auctionConfig, now);
+    if (newEndsAt !== null) {
+      endsAt = newEndsAt;
+      extensionCount += 1;
+      extended = true;
+    }
+
+    const bidEntry: BidEntry = {
+      playerId: playerId,
+      amount,
+      timestamp: now,
+    };
+
+    const newAuctionState: AuctionState = {
+      ...auction,
+      highestBid: amount,
+      highestBidder: playerId,
+      bids: [...auction.bids, bidEntry],
+      endsAt,
+      extensionCount,
+      status: extended ? AuctionStatus.ENDING : auction.status,
+    };
+
+    const newState = {
+      ...state,
+      auction: newAuctionState,
+    };
+
+    const events: GameEvent[] = [];
+
+    events.push(
+      this.createEvent(
+        newState,
+        EventType.AUCTION_BID_PLACED,
+        {
+          auctionId: auction.id,
+          playerId: playerId,
+          amount,
+          newEndsAt: endsAt,
+        } as AuctionBidPlacedPayload,
+        now
+      )
+    );
+
+    if (extended) {
+      events.push(
+        this.createEvent(
+          newState,
+          EventType.AUCTION_EXTENDED,
+          {
+            auctionId: auction.id,
+            newEndsAt: endsAt,
+            extensionCount,
+          } as AuctionExtendedPayload,
+          now
+        )
+      );
+    }
+
+    return { newState, events };
   }
 
-  // -------------------------------------------------------------------------
-  // Auction Fold
-  // -------------------------------------------------------------------------
-
   /**
-   * A player opts out of bidding (they may still watch).
-   *
-   * TODO: Implement.
-   *
-   * Rules:
-   * 1. Remove player from auction.participants.
-   * 2. If 0 participants remain, trigger endAuction with no winner.
-   * 3. If 1 participant remains and they are the highest bidder, endAuction immediately.
-   *
-   * @param state - Current game state.
-   * @param playerId - Player folding.
-   * @param mapConfig - Map configuration.
-   * @param now - Server timestamp (unix ms).
+   * A player opts out of bidding.
    */
   foldAuction(
     state: GameState,
@@ -131,68 +244,158 @@ export class AuctionEngine {
     mapConfig: MapConfig,
     now: number,
   ): EngineResult {
-    // TODO: Implement
-    throw new EngineNotImplementedError('AuctionEngine.foldAuction');
-  }
+    const auction = this.requireActiveAuction(state);
+    
+    if (!auction.activeBidders.includes(playerId)) {
+      throw new EngineValidationError('You are not an active bidder', ErrorCode.E_UNAUTHORIZED);
+    }
 
-  // -------------------------------------------------------------------------
-  // Auction End
-  // -------------------------------------------------------------------------
+    const newActiveBidders = auction.activeBidders.filter(id => id !== playerId);
+    const newFoldedPlayers = [...auction.foldedPlayers, playerId];
+
+    const newAuctionState: AuctionState = {
+      ...auction,
+      activeBidders: newActiveBidders,
+      foldedPlayers: newFoldedPlayers,
+    };
+
+    const newState = {
+      ...state,
+      auction: newAuctionState,
+    };
+
+    const autoResolve = 
+      newActiveBidders.length === 0 || 
+      (newActiveBidders.length === 1 && newAuctionState.highestBidder !== null);
+
+    if (autoResolve) {
+      return this.endAuction(newState, mapConfig, now);
+    }
+
+    return { newState, events: [] };
+  }
 
   /**
    * Finalise an expired or naturally concluded auction.
-   * Called by the server's AuctionTimerWorker when endsAt has passed,
-   * or by foldAuction when all participants have folded.
-   *
-   * TODO: Implement.
-   *
-   * Rules:
-   * 1. If auction.currentBidderId is null → no bids; property remains with bank.
-   *    Emit PROPERTY_AUCTIONED_UNSOLD event.
-   * 2. If there is a winner:
-   *    a. Transfer amount from player.money to bank.money.
-   *    b. Set board.tiles[tileId].ownerId = winnerId.
-   *    c. Append tileId to player.properties.
-   *    d. Emit PROPERTY_AUCTIONED_SOLD event.
-   * 3. Set GameState.auction = null.
-   * 4. Emit AUCTION_COMPLETE event (audience: ALL).
-   *
-   * @param state - Current game state.
-   * @param mapConfig - Map configuration.
-   * @param now - Server timestamp (unix ms).
    */
   endAuction(
     state: GameState,
     mapConfig: MapConfig,
     now: number,
   ): EngineResult {
-    // TODO: Implement
-    throw new EngineNotImplementedError('AuctionEngine.endAuction');
+    const auction = state.auction;
+    if (!auction) {
+      throw new EngineStateCorruptionError('endAuction: No auction active');
+    }
+
+    const events: GameEvent[] = [];
+    let newState = { ...state };
+
+    const completeEvent = this.createEvent(
+      newState,
+      EventType.AUCTION_COMPLETE,
+      {
+        auctionId: auction.id,
+        winnerId: auction.highestBidder,
+        finalBid: auction.highestBid,
+        tileId: auction.tileId,
+      } as AuctionCompletePayload,
+      now
+    );
+    events.push(completeEvent);
+
+    if (auction.highestBidder !== null) {
+      // We have a winner
+      const winner = newState.players[auction.highestBidder];
+      if (!winner) throw new EngineStateCorruptionError('Winner not found');
+
+      // Deduct money
+      newState = {
+        ...newState,
+        players: {
+          ...newState.players,
+          [winner.id]: {
+            ...winner,
+            money: winner.money - auction.highestBid,
+          },
+        },
+      };
+
+      // Property ownership transfer
+      newState = {
+        ...newState,
+        board: {
+          ...newState.board,
+          tiles: {
+            ...newState.board.tiles,
+            [auction.tileId]: {
+              ...newState.board.tiles[auction.tileId]!,
+              ownerId: winner.id,
+            },
+          },
+        },
+        players: {
+          ...newState.players,
+          [winner.id]: {
+            ...newState.players[winner.id]!,
+            properties: [...newState.players[winner.id]!.properties, auction.tileId],
+          }
+        }
+      };
+
+      const soldEvent = this.createEvent(
+        newState,
+        EventType.PROPERTY_AUCTIONED_SOLD,
+        {
+          tileId: auction.tileId,
+          winnerId: winner.id,
+          finalBid: auction.highestBid,
+        } as PropertyAuctionedSoldPayload,
+        now
+      );
+      events.push(soldEvent);
+    } else {
+      // Unsold
+      const unsoldEvent = this.createEvent(
+        newState,
+        EventType.PROPERTY_AUCTIONED_UNSOLD,
+        {
+          tileId: auction.tileId,
+        } as PropertyAuctionedUnsoldPayload,
+        now
+      );
+      events.push(unsoldEvent);
+    }
+
+    // Restore phase to IN_PROGRESS so the original turn player can end their turn.
+    newState = {
+      ...newState,
+      phase: GamePhase.IN_PROGRESS,
+      auction: null,
+    };
+
+    return { newState, events };
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
-
-  /**
-   * Compute whether a bid at `now` should extend the auction timer.
-   * Returns the new endsAt if extension is warranted, null otherwise.
-   *
-   * TODO: Implement.
-   */
   private computeExtension(
     auction: AuctionState,
-    auctionConfig: MapConfig['rules']['auctionConfig'],
+    auctionConfig: NonNullable<MapConfig['rules']['auctionConfig']>,
     now: number,
   ): number | null {
-    // TODO: Implement
-    throw new EngineNotImplementedError('AuctionEngine.computeExtension');
+    if (!auctionConfig) return null;
+    
+    const timeRemaining = auction.endsAt - now;
+    const thresholdMs = auctionConfig.extensionThreshold * 1000;
+    const extensionMs = auctionConfig.extensionSeconds * 1000;
+    
+    if (timeRemaining < thresholdMs && timeRemaining > 0 && auction.extensionCount < auctionConfig.maxExtensions) {
+      return now + extensionMs;
+    } else if (timeRemaining <= 0 && auction.extensionCount < auctionConfig.maxExtensions) {
+      return now + extensionMs;
+    }
+    return null;
   }
 
-  /**
-   * Assert that an auction is currently active.
-   * @throws EngineValidationError if no auction is active.
-   */
   private requireActiveAuction(state: GameState): AuctionState {
     if (!state.auction) {
       throw new EngineValidationError(

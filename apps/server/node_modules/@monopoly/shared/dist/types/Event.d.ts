@@ -3,12 +3,17 @@ import type { JailReason, JailReleaseMethod, CardDeckType } from './Enums.js';
 export declare enum EventType {
     PLAYER_MOVED = "PLAYER_MOVED",
     PLAYER_PASSED_GO = "PLAYER_PASSED_GO",
+    EXTRA_TURN_GRANTED = "EXTRA_TURN_GRANTED",
     DICE_ROLLED = "DICE_ROLLED",
     PROPERTY_PURCHASED = "PROPERTY_PURCHASED",
+    MONOPOLY_COMPLETED = "MONOPOLY_COMPLETED",
     PROPERTY_AUCTIONED_START = "PROPERTY_AUCTIONED_START",
     PROPERTY_AUCTIONED_SOLD = "PROPERTY_AUCTIONED_SOLD",
     PROPERTY_AUCTIONED_UNSOLD = "PROPERTY_AUCTIONED_UNSOLD",
+    RENT_CALCULATED = "RENT_CALCULATED",
     RENT_PAID = "RENT_PAID",
+    MONOPOLY_RENT_APPLIED = "MONOPOLY_RENT_APPLIED",
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS",
     HOUSE_BUILT = "HOUSE_BUILT",
     HOTEL_BUILT = "HOTEL_BUILT",
     HOUSE_SOLD = "HOUSE_SOLD",
@@ -69,6 +74,10 @@ export interface PlayerPassedGoPayload {
     readonly playerId: PlayerId;
     readonly amount: number;
 }
+export interface ExtraTurnGrantedPayload {
+    readonly playerId: PlayerId;
+    readonly reason: 'DOUBLES' | 'CARD';
+}
 export interface DiceRolledPayload {
     readonly playerId: PlayerId;
     readonly dice: readonly [number, number];
@@ -81,10 +90,39 @@ export interface PropertyPurchasedPayload {
     readonly tileId: TileId;
     readonly price: number;
 }
+export interface MonopolyCompletedPayload {
+    readonly playerId: PlayerId;
+    readonly groupId: string;
+}
 export interface PropertyAuctionedStartPayload {
     readonly tileId: TileId;
     readonly startingBid: number;
     readonly auction: AuctionState;
+}
+export interface RentCalculatedPayload {
+    readonly payerId: PlayerId;
+    readonly payeeId: PlayerId | null;
+    readonly tileId: TileId;
+    readonly amount: number;
+}
+export interface RentPaidPayload {
+    readonly payerId: PlayerId;
+    readonly payeeId: PlayerId | null;
+    readonly tileId: TileId;
+    readonly amount: number;
+}
+export interface MonopolyRentAppliedPayload {
+    readonly payerId: PlayerId;
+    readonly payeeId: PlayerId;
+    readonly tileId: TileId;
+    readonly groupId: string;
+    readonly baseAmount: number;
+    readonly newAmount: number;
+}
+export interface InsufficientFundsPayload {
+    readonly playerId: PlayerId;
+    readonly creditorId: PlayerId | null;
+    readonly amountOwed: number;
 }
 export interface PropertyAuctionedSoldPayload {
     readonly tileId: TileId;
@@ -93,13 +131,6 @@ export interface PropertyAuctionedSoldPayload {
 }
 export interface PropertyAuctionedUnsoldPayload {
     readonly tileId: TileId;
-}
-export interface RentPaidPayload {
-    readonly fromPlayerId: PlayerId;
-    readonly toPlayerId: PlayerId;
-    readonly tileId: TileId;
-    readonly amount: number;
-    readonly rentType: 'BASE' | 'COLOR_GROUP' | 'HOUSE' | 'HOTEL' | 'RAILROAD' | 'UTILITY';
 }
 export interface HouseBuiltPayload {
     readonly playerId: PlayerId;
@@ -277,12 +308,17 @@ interface BaseEvent<T extends EventType, P> {
 }
 export type PlayerMovedEvent = BaseEvent<EventType.PLAYER_MOVED, PlayerMovedPayload>;
 export type PlayerPassedGoEvent = BaseEvent<EventType.PLAYER_PASSED_GO, PlayerPassedGoPayload>;
+export type ExtraTurnGrantedEvent = BaseEvent<EventType.EXTRA_TURN_GRANTED, ExtraTurnGrantedPayload>;
 export type DiceRolledEvent = BaseEvent<EventType.DICE_ROLLED, DiceRolledPayload>;
 export type PropertyPurchasedEvent = BaseEvent<EventType.PROPERTY_PURCHASED, PropertyPurchasedPayload>;
+export type MonopolyCompletedEvent = BaseEvent<EventType.MONOPOLY_COMPLETED, MonopolyCompletedPayload>;
 export type PropertyAuctionedStartEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_START, PropertyAuctionedStartPayload>;
 export type PropertyAuctionedSoldEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_SOLD, PropertyAuctionedSoldPayload>;
 export type PropertyAuctionedUnsoldEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_UNSOLD, PropertyAuctionedUnsoldPayload>;
+export type RentCalculatedEvent = BaseEvent<EventType.RENT_CALCULATED, RentCalculatedPayload>;
 export type RentPaidEvent = BaseEvent<EventType.RENT_PAID, RentPaidPayload>;
+export type MonopolyRentAppliedEvent = BaseEvent<EventType.MONOPOLY_RENT_APPLIED, MonopolyRentAppliedPayload>;
+export type InsufficientFundsEvent = BaseEvent<EventType.INSUFFICIENT_FUNDS, InsufficientFundsPayload>;
 export type HouseBuiltEvent = BaseEvent<EventType.HOUSE_BUILT, HouseBuiltPayload>;
 export type HotelBuiltEvent = BaseEvent<EventType.HOTEL_BUILT, HotelBuiltPayload>;
 export type HouseSoldEvent = BaseEvent<EventType.HOUSE_SOLD, HouseSoldPayload>;
@@ -319,7 +355,7 @@ export type HostMigratedEvent = BaseEvent<EventType.HOST_MIGRATED, HostMigratedP
  * The complete union of all possible server-emitted game events.
  * Switch on `event.type` for exhaustive narrowing.
  */
-export type GameEvent = PlayerMovedEvent | PlayerPassedGoEvent | DiceRolledEvent | PropertyPurchasedEvent | PropertyAuctionedStartEvent | PropertyAuctionedSoldEvent | PropertyAuctionedUnsoldEvent | RentPaidEvent | HouseBuiltEvent | HotelBuiltEvent | HouseSoldEvent | HotelSoldEvent | PropertyMortgagedEvent | PropertyUnmortgagedEvent | AuctionBidPlacedEvent | AuctionExtendedEvent | AuctionCompleteEvent | TradeProposedEvent | TradeCounteredEvent | TradeAcceptedEvent | TradeRejectedEvent | TradeCancelledEvent | TradeExecutedEvent | CardDrawnEvent | CardEffectAppliedEvent | PlayerJailedEvent | PlayerReleasedJailEvent | TaxPaidEvent | MoneyTransferredEvent | BankruptcyDeclaredEvent | AssetsTransferredEvent | GameStartedEvent | TurnStartedEvent | TurnEndedEvent | TurnTimedOutEvent | GameEndedEvent | PlayerConnectedEvent | PlayerDisconnectedEvent | PlayerReconnectedEvent | HostMigratedEvent;
+export type GameEvent = PlayerMovedEvent | PlayerPassedGoEvent | ExtraTurnGrantedEvent | DiceRolledEvent | PropertyPurchasedEvent | MonopolyCompletedEvent | PropertyAuctionedStartEvent | PropertyAuctionedSoldEvent | PropertyAuctionedUnsoldEvent | RentCalculatedEvent | RentPaidEvent | MonopolyRentAppliedEvent | InsufficientFundsEvent | HouseBuiltEvent | HotelBuiltEvent | HouseSoldEvent | HotelSoldEvent | PropertyMortgagedEvent | PropertyUnmortgagedEvent | AuctionBidPlacedEvent | AuctionExtendedEvent | AuctionCompleteEvent | TradeProposedEvent | TradeCounteredEvent | TradeAcceptedEvent | TradeRejectedEvent | TradeCancelledEvent | TradeExecutedEvent | CardDrawnEvent | CardEffectAppliedEvent | PlayerJailedEvent | PlayerReleasedJailEvent | TaxPaidEvent | MoneyTransferredEvent | BankruptcyDeclaredEvent | AssetsTransferredEvent | GameStartedEvent | TurnStartedEvent | TurnEndedEvent | TurnTimedOutEvent | GameEndedEvent | PlayerConnectedEvent | PlayerDisconnectedEvent | PlayerReconnectedEvent | HostMigratedEvent;
 /**
  * Utility: extract the specific event type for a given EventType key.
  * @example

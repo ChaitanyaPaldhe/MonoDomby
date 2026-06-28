@@ -32,6 +32,7 @@ export enum EventType {
   // Board movement
   PLAYER_MOVED = 'PLAYER_MOVED',
   PLAYER_PASSED_GO = 'PLAYER_PASSED_GO',
+  EXTRA_TURN_GRANTED = 'EXTRA_TURN_GRANTED',
   DICE_ROLLED = 'DICE_ROLLED',
 
   // Property
@@ -128,6 +129,11 @@ export interface PlayerPassedGoPayload {
   readonly amount: number;
 }
 
+export interface ExtraTurnGrantedPayload {
+  readonly playerId: PlayerId;
+  readonly reason: 'DOUBLES' | 'CARD';
+}
+
 export interface DiceRolledPayload {
   readonly playerId: PlayerId;
   readonly dice: readonly [number, number];
@@ -192,13 +198,6 @@ export interface PropertyAuctionedUnsoldPayload {
   readonly tileId: TileId;
 }
 
-export interface RentPaidPayload {
-  readonly fromPlayerId: PlayerId;
-  readonly toPlayerId: PlayerId;
-  readonly tileId: TileId;
-  readonly amount: number;
-  readonly rentType: 'BASE' | 'COLOR_GROUP' | 'HOUSE' | 'HOTEL' | 'RAILROAD' | 'UTILITY';
-}
 
 export interface HouseBuiltPayload {
   readonly playerId: PlayerId;
@@ -418,6 +417,7 @@ interface BaseEvent<T extends EventType, P> {
 
 export type PlayerMovedEvent = BaseEvent<EventType.PLAYER_MOVED, PlayerMovedPayload>;
 export type PlayerPassedGoEvent = BaseEvent<EventType.PLAYER_PASSED_GO, PlayerPassedGoPayload>;
+export type ExtraTurnGrantedEvent = BaseEvent<EventType.EXTRA_TURN_GRANTED, ExtraTurnGrantedPayload>;
 export type DiceRolledEvent = BaseEvent<EventType.DICE_ROLLED, DiceRolledPayload>;
 
 export type PropertyPurchasedEvent = BaseEvent<EventType.PROPERTY_PURCHASED, PropertyPurchasedPayload>;
@@ -481,6 +481,7 @@ export type HostMigratedEvent = BaseEvent<EventType.HOST_MIGRATED, HostMigratedP
 export type GameEvent =
   | PlayerMovedEvent
   | PlayerPassedGoEvent
+  | ExtraTurnGrantedEvent
   | DiceRolledEvent
   | PropertyPurchasedEvent
   | MonopolyCompletedEvent

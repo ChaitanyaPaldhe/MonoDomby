@@ -23,7 +23,8 @@ import { EngineTransitionError } from './errors.js';
 const GAME_TRANSITIONS: Readonly<Record<GamePhase, ReadonlySet<GamePhase>>> = {
   [GamePhase.LOBBY]: new Set([GamePhase.STARTING]),
   [GamePhase.STARTING]: new Set([GamePhase.IN_PROGRESS]),
-  [GamePhase.IN_PROGRESS]: new Set([GamePhase.ENDED]),
+  [GamePhase.IN_PROGRESS]: new Set([GamePhase.AUCTION, GamePhase.ENDED]),
+  [GamePhase.AUCTION]: new Set([GamePhase.IN_PROGRESS, GamePhase.ENDED]),
   [GamePhase.ENDED]: new Set(),
 };
 

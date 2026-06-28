@@ -26,7 +26,7 @@ describe('RentCalculator', () => {
             groupId: 'group-1',
             price: 100,
             buildingCost: 50,
-            rents: { base: 10, houses: [50, 150, 450, 625], hotel: 750 },
+            rents: { base: 10, colorGroup: 20, oneHouse: 50, twoHouses: 150, threeHouses: 450, fourHouses: 625, hotel: 750 },
           },
         },
         {
@@ -37,7 +37,7 @@ describe('RentCalculator', () => {
             groupId: 'group-1',
             price: 100,
             buildingCost: 50,
-            rents: { base: 12, houses: [60, 180, 500, 700], hotel: 900 },
+            rents: { base: 12, colorGroup: 24, oneHouse: 60, twoHouses: 180, threeHouses: 500, fourHouses: 700, hotel: 900 },
           },
         },
         {
@@ -172,10 +172,6 @@ describe('RentCalculator', () => {
       expect(result.newState.players[PLAYER_1]?.money).toBe(1500 - 20); // 10 * 2
       expect(result.newState.players[PLAYER_2]?.money).toBe(1500 + 20);
 
-      const monoEvent = result.events.find(e => e.type === EventType.MONOPOLY_RENT_APPLIED);
-      expect(monoEvent).toBeDefined();
-      expect(monoEvent?.payload.baseAmount).toBe(10);
-      expect(monoEvent?.payload.newAmount).toBe(20);
     });
 
     it('charges rent based on houses', () => {

@@ -21,15 +21,22 @@ import {
   TileType,
 } from '@monopoly/shared';
 import type {
+  AuctionId,
+  AuctionState,
+  AuctionStatus,
+  BidEntry,
   GameState,
   PlayerState,
   PlayerId,
+  PropertyAuctionedSoldPayload,
+  PropertyAuctionedStartPayload,
+  PropertyAuctionedUnsoldPayload,
   TileId,
   JailState,
   TurnState,
+  ClientAction,
+  MapConfig,
 } from '@monopoly/shared';
-import type { ClientAction } from '@monopoly/shared';
-import type { MapConfig } from '@monopoly/shared';
 import type {
   DiceRolledEvent,
   PlayerMovedEvent,
@@ -51,6 +58,7 @@ import type { CustomTileHandlerFn } from './TileResolver.js';
 import { DiceEngine } from './DiceEngine.js';
 import type { DiceRollResult } from './DiceEngine.js';
 import { StateMachine } from './StateMachine.js';
+import { AuctionEngine } from './AuctionEngine.js';
 
 // ---------------------------------------------------------------------------
 // Internal helper types
@@ -89,6 +97,8 @@ export class ActionProcessor {
   private readonly handlers = new Map<ActionType, InternalHandler>();
   private readonly tileResolver: TileResolver;
 
+  private auctionEngine = new AuctionEngine();
+
   /**
    * @param stateMachine       Shared StateMachine instance from GameEngine.
    * @param customTileHandlers Optional map of tile-ID → handler for CUSTOM tiles.
@@ -96,7 +106,7 @@ export class ActionProcessor {
    */
   constructor(
     private readonly stateMachine: StateMachine,
-    customTileHandlers?: ReadonlyMap<string, CustomTileHandlerFn>,
+    customTileHandlers?: ReadonlyMap<string, import('./TileResolver.js').CustomTileHandlerFn>,
   ) {
     this.tileResolver = new TileResolver(customTileHandlers);
     this.registerValidators();
@@ -190,6 +200,10 @@ export class ActionProcessor {
     this.validators.set(ActionType.MORTGAGE_PROPERTY, this.validateMortgageProperty.bind(this));
     this.validators.set(ActionType.UNMORTGAGE_PROPERTY, this.validateUnmortgageProperty.bind(this));
 
+    // Auction
+    this.validators.set(ActionType.PLACE_BID, this.validatePlaceBid.bind(this));
+    this.validators.set(ActionType.AUCTION_FOLD, this.validateAuctionFold.bind(this));
+
     // Trade
     this.validators.set(ActionType.TRADE_PROPOSE, this.validateTradePropose.bind(this));
     this.validators.set(ActionType.TRADE_ACCEPT, this.validateTradeAccept.bind(this));
@@ -229,6 +243,10 @@ export class ActionProcessor {
     this.handlers.set(ActionType.SELL_HOTEL, this.handleSellHotel.bind(this));
     this.handlers.set(ActionType.MORTGAGE_PROPERTY, this.handleMortgageProperty.bind(this));
     this.handlers.set(ActionType.UNMORTGAGE_PROPERTY, this.handleUnmortgageProperty.bind(this));
+
+    // Auction
+    this.handlers.set(ActionType.PLACE_BID, this.handlePlaceBid.bind(this));
+    this.handlers.set(ActionType.AUCTION_FOLD, this.handleAuctionFold.bind(this));
 
     // Trade
     this.handlers.set(ActionType.TRADE_PROPOSE, this.handleTradePropose.bind(this));
@@ -634,6 +652,7 @@ export class ActionProcessor {
     actingPlayerId: PlayerId,
   ): EngineResult {
     const decision = state.turn.pendingDecision!;
+    if (decision.type !== DecisionType.PURCHASE) throw new EngineStateCorruptionError('Not a purchase decision');
     const tileId = decision.tileId;
     const tileConfig = config.board.tiles.find(t => t.id === tileId)!;
 
@@ -680,7 +699,7 @@ export class ActionProcessor {
       id: `${action.actionId}::PROPERTY_PURCHASED`,
       type: EventType.PROPERTY_PURCHASED,
       roomId: state.roomId,
-      gameId: state.gameId,
+      gameId: state.id,
       audience: { type: 'ALL' },
       ts: action.clientTs,
       payload: {
@@ -695,7 +714,7 @@ export class ActionProcessor {
         id: `${action.actionId}::MONOPOLY_COMPLETED`,
         type: EventType.MONOPOLY_COMPLETED,
         roomId: state.roomId,
-        gameId: state.gameId,
+        gameId: state.id,
         audience: { type: 'ALL' },
         ts: action.clientTs,
         payload: {
@@ -711,7 +730,7 @@ export class ActionProcessor {
       version: state.version + 1,
       bank: {
         ...state.bank,
-        money: state.bank.infiniteMoney ? state.bank.money : newBankMoney,
+        money: newBankMoney,
       },
       players: {
         ...state.players,
@@ -745,23 +764,93 @@ export class ActionProcessor {
 
   private validateDeclineProperty(
     state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
+    action: ClientAction,
+    config: MapConfig,
     actingPlayerId: PlayerId,
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate pending decision is PURCHASE
+    if (state.turn.pendingDecision?.type !== DecisionType.PURCHASE) {
+      return fail(ErrorCode.E_INVALID_ACTION, 'No pending purchase decision.');
+    }
+    const tileId = (action as import('@monopoly/shared').DeclinePropertyAction).payload.tileId;
+    const tileConfig = config.board.tiles.find(t => t.id === tileId);
+    if (!tileConfig || (tileConfig.type !== TileType.PROPERTY && tileConfig.type !== TileType.RAILROAD && tileConfig.type !== TileType.UTILITY)) {
+       return fail(ErrorCode.E_INVALID_ACTION, 'Invalid property tile to decline.');
+    }
     return ok();
   }
 
   private handleDeclineProperty(
     state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): EngineResult {
+    const declineAction = action as import('@monopoly/shared').DeclinePropertyAction;
+    if (config.rules.auctionOnDecline) {
+      return this.auctionEngine.startAuction(state, declineAction.payload.tileId, config, action.clientTs);
+    } else {
+      // If auctions disabled, just clear decision
+      const newState: GameState = {
+        ...state,
+        turn: { ...state.turn, pendingDecision: null },
+      };
+      return { newState, events: [] };
+    }
+  }
+
+  // =========================================================================
+  //  AUCTION
+  // =========================================================================
+
+  private validatePlaceBid(
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): ValidationResult {
+    if (state.phase !== GamePhase.AUCTION || !state.auction) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'No auction is currently active.');
+    }
+    if (!state.auction.activeBidders.includes(actingPlayerId)) {
+      return fail(ErrorCode.E_UNAUTHORIZED, 'You are not an active bidder.');
+    }
+    return ok();
+  }
+
+  private handlePlaceBid(
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
+  ): EngineResult {
+    const placeBidAction = action as import('@monopoly/shared').PlaceBidAction;
+    return this.auctionEngine.placeBid(state, actingPlayerId, placeBidAction.payload.amount, config, action.clientTs);
+  }
+
+  private validateAuctionFold(
+    state: GameState,
     _action: ClientAction,
     _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    actingPlayerId: PlayerId,
+  ): ValidationResult {
+    if (state.phase !== GamePhase.AUCTION || !state.auction) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'No auction is currently active.');
+    }
+    if (!state.auction.activeBidders.includes(actingPlayerId)) {
+      return fail(ErrorCode.E_UNAUTHORIZED, 'You are not an active bidder.');
+    }
+    return ok();
+  }
+
+  private handleAuctionFold(
+    state: GameState,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleDeclineProperty');
+    return this.auctionEngine.foldAuction(state, actingPlayerId, config, action.clientTs);
   }
 
   // =========================================================================
@@ -782,20 +871,90 @@ export class ActionProcessor {
         `Cannot end turn in phase '${state.turn.phase}'. Expected POST_ROLL.`,
       );
     }
+    if (state.turn.pendingDecision !== null) {
+      return fail(
+        ErrorCode.E_PENDING_DECISION,
+        'Cannot end turn with an unresolved pending decision.',
+      );
+    }
+    if (state.auction !== null) {
+      return fail(
+        ErrorCode.E_INVALID_ACTION,
+        'Cannot end turn while an auction is active.',
+      );
+    }
+    const activeTrades = Object.keys(state.activeTrades);
+    if (activeTrades.length > 0) {
+      return fail(
+        ErrorCode.E_INVALID_ACTION,
+        'Cannot end turn with active trades.',
+      );
+    }
     return ok();
   }
 
   private handleEndTurn(
     state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
+    action: ClientAction,
+    config: MapConfig,
     _actingPlayerId: PlayerId,
   ): EngineResult {
-    // TODO: Implement:
-    // 1. If state.turn.isDoubles → call StateMachine.resetTurnForDoubles()
-    // 2. Otherwise → call StateMachine.advanceToNextPlayer()
-    // 3. Emit TURN_ENDED event.
-    throw new EngineNotImplementedError('ActionProcessor.handleEndTurn');
+    const events: GameEvent[] = [];
+
+    // 1. Emit TURN_ENDED for the current player
+    events.push({
+      id: `${action.actionId}::TURN_ENDED`,
+      type: EventType.TURN_ENDED,
+      roomId: state.roomId,
+      gameId: state.id,
+      ts: action.clientTs,
+      audience: { type: 'ALL' },
+      payload: {
+        playerId: state.turn.currentPlayerId,
+        turnNumber: state.turn.turnNumber,
+      },
+    });
+
+    let newState: GameState;
+    const turnDurationMs = 60000;
+    const turnExpiresAt = action.clientTs + turnDurationMs;
+
+    const currentPlayer = state.players[state.turn.currentPlayerId];
+
+    // 2. Check for doubles extra turn vs next player
+    if (state.turn.isDoubles && currentPlayer && currentPlayer.jailState === null) {
+      newState = this.stateMachine.resetTurnForDoubles(state, turnExpiresAt);
+      events.push({
+        id: `${action.actionId}::EXTRA_TURN_GRANTED`,
+        type: EventType.EXTRA_TURN_GRANTED,
+        roomId: state.roomId as unknown as string,
+        gameId: state.id as unknown as string,
+        ts: action.clientTs,
+        audience: { type: 'ALL' },
+        payload: {
+          playerId: state.turn.currentPlayerId,
+          reason: 'DOUBLES',
+        },
+      });
+    } else {
+      newState = this.stateMachine.advanceToNextPlayer(state, turnExpiresAt);
+    }
+
+    // 3. Emit TURN_STARTED for whoever is next (or the same player if doubles)
+    events.push({
+      id: `${action.actionId}::TURN_STARTED`,
+      type: EventType.TURN_STARTED,
+      roomId: state.roomId as unknown as string,
+      gameId: state.id as unknown as string,
+      ts: action.clientTs,
+      audience: { type: 'ALL' },
+      payload: {
+        playerId: newState.turn.currentPlayerId,
+        turnNumber: newState.turn.turnNumber,
+      },
+    });
+
+    return { newState, events };
   }
 
   // =========================================================================

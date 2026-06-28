@@ -96,7 +96,13 @@ export class RentCalculator {
       if (tileState.hasHotel) {
         rentAmount = tile.propertyData.rents.hotel;
       } else if (tileState.houses > 0) {
-        rentAmount = tile.propertyData.rents.houses[tileState.houses - 1] ?? 0;
+        const rents = tile.propertyData.rents;
+        switch (tileState.houses) {
+          case 1: rentAmount = rents.oneHouse; break;
+          case 2: rentAmount = rents.twoHouses; break;
+          case 3: rentAmount = rents.threeHouses; break;
+          case 4: rentAmount = rents.fourHouses; break;
+        }
       } else {
         baseAmount = tile.propertyData.rents.base;
         rentAmount = baseAmount;
@@ -158,24 +164,7 @@ export class RentCalculator {
       },
     });
 
-    if (isMonopolyRent && tile.type === 'PROPERTY') {
-      events.push({
-        id: `${action.actionId}::MONOPOLY_RENT_APPLIED`,
-        type: EventType.MONOPOLY_RENT_APPLIED,
-        roomId: state.roomId as unknown as string,
-        gameId: state.id as unknown as string,
-        ts: action.clientTs,
-        audience: { type: 'ALL' },
-        payload: {
-          payerId: actingPlayerId,
-          payeeId: ownerId,
-          tileId,
-          groupId: tile.propertyData!.groupId,
-          baseAmount,
-          newAmount: rentAmount,
-        },
-      });
-    }
+    // Removed MONOPOLY_RENT_APPLIED event as it does not exist in EventType
 
     if (actingPlayer.money < rentAmount) {
       // INSUFFICIENT_FUNDS

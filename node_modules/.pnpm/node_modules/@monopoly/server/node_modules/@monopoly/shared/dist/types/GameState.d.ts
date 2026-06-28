@@ -167,13 +167,15 @@ export interface AuctionState {
     /** Server timestamp when auction will end unless extended (unix ms). */
     readonly endsAt: number;
     /** Current highest bid amount. 0 if no bids yet. */
-    readonly currentBid: number;
+    readonly highestBid: number;
     /** Player ID of the highest bidder. Null if no bids. */
-    readonly currentBidderId: PlayerId | null;
+    readonly highestBidder: PlayerId | null;
     /** Ordered bid history (oldest first). */
     readonly bids: readonly BidEntry[];
-    /** Player IDs eligible to bid (connected, non-bankrupt). */
-    readonly participants: readonly PlayerId[];
+    /** Player IDs eligible to bid (connected, non-bankrupt, non-folded). */
+    readonly activeBidders: readonly PlayerId[];
+    /** Player IDs who have permanently folded from this auction. */
+    readonly foldedPlayers: readonly PlayerId[];
     readonly status: AuctionStatus;
     /** Number of times the timer has been extended this auction. */
     readonly extensionCount: number;
@@ -219,6 +221,12 @@ export type PendingDecision = {
     /** The player or bank that is owed money. Null = owed to bank. */
     readonly creditorId: PlayerId | null;
     /** Total amount that must be raised or debt remains unserviceable. */
+    readonly amountOwed: number;
+} | {
+    readonly type: DecisionType.INSUFFICIENT_FUNDS;
+    /** The player or bank that is owed money. Null = owed to bank. */
+    readonly creditorId: PlayerId | null;
+    /** Total amount that must be raised. */
     readonly amountOwed: number;
 } | {
     readonly type: DecisionType.CARD_EFFECT;

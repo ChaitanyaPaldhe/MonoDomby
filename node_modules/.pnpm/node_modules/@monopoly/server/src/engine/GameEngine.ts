@@ -159,11 +159,20 @@ export class GameEngine {
     if (winResult.won) {
       // Step 5: Transition to ENDED
       const endedState = this.stateMachine.transitionGame(stateAfterRules, GamePhase.ENDED);
+      const finalState = {
+        ...endedState,
+        checksum: GameEngine.computeChecksum(endedState),
+      };
       // TODO: Build full GAME_ENDED event with final standings
-      return { newState: endedState, events: [...intermediate.events] };
+      return { newState: finalState, events: [...intermediate.events] };
     }
 
-    return { newState: stateAfterRules, events: intermediate.events };
+    const finalState = {
+      ...stateAfterRules,
+      checksum: GameEngine.computeChecksum(stateAfterRules),
+    };
+
+    return { newState: finalState, events: intermediate.events };
   }
 
   /**

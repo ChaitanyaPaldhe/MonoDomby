@@ -17,6 +17,8 @@ var GamePhase;
     GamePhase["STARTING"] = "STARTING";
     /** Active gameplay. Turn-level state machine is running. */
     GamePhase["IN_PROGRESS"] = "IN_PROGRESS";
+    /** Dedicated auction phase overriding turn sequence. */
+    GamePhase["AUCTION"] = "AUCTION";
     /** Victory condition met. Game is over. Read-only final state. */
     GamePhase["ENDED"] = "ENDED";
 })(GamePhase || (exports.GamePhase = GamePhase = {}));
@@ -218,6 +220,8 @@ var ErrorCode;
     ErrorCode["E_ROOM_FULL"] = "E_ROOM_FULL";
     ErrorCode["E_GAME_NOT_STARTED"] = "E_GAME_NOT_STARTED";
     ErrorCode["E_GAME_ENDED"] = "E_GAME_ENDED";
+    ErrorCode["E_PENDING_DECISION"] = "E_PENDING_DECISION";
+    ErrorCode["E_INVALID_ACTION"] = "E_INVALID_ACTION";
     ErrorCode["E_UNKNOWN"] = "E_UNKNOWN";
 })(ErrorCode || (exports.ErrorCode = ErrorCode = {}));
 // ---------------------------------------------------------------------------
@@ -246,5 +250,6 @@ var DecisionType;
     DecisionType["JAIL"] = "JAIL";
     DecisionType["BANKRUPTCY"] = "BANKRUPTCY";
     DecisionType["CARD_EFFECT"] = "CARD_EFFECT";
+    DecisionType["INSUFFICIENT_FUNDS"] = "INSUFFICIENT_FUNDS";
 })(DecisionType || (exports.DecisionType = DecisionType = {}));
 //# sourceMappingURL=Enums.js.map

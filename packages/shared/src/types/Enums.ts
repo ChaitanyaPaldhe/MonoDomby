@@ -15,6 +15,8 @@ export enum GamePhase {
   STARTING = 'STARTING',
   /** Active gameplay. Turn-level state machine is running. */
   IN_PROGRESS = 'IN_PROGRESS',
+  /** Dedicated auction phase overriding turn sequence. */
+  AUCTION = 'AUCTION',
   /** Victory condition met. Game is over. Read-only final state. */
   ENDED = 'ENDED',
 }
@@ -222,6 +224,8 @@ export enum ErrorCode {
   E_ROOM_FULL = 'E_ROOM_FULL',
   E_GAME_NOT_STARTED = 'E_GAME_NOT_STARTED',
   E_GAME_ENDED = 'E_GAME_ENDED',
+  E_PENDING_DECISION = 'E_PENDING_DECISION',
+  E_INVALID_ACTION = 'E_INVALID_ACTION',
   E_UNKNOWN = 'E_UNKNOWN',
 }
 
