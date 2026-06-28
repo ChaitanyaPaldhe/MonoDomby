@@ -20,6 +20,8 @@ export { AuctionEngine } from './AuctionEngine.js';
 export { TradeEngine } from './TradeEngine.js';
 export { CardEngine, CardHandlerRegistry } from './CardEngine.js';
 export { BankruptcyEngine } from './BankruptcyEngine.js';
+export { TileResolver } from './TileResolver.js';
+export type { CustomTileHandlerFn } from './TileResolver.js';
 
 // Types
 export type {

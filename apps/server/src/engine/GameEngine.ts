@@ -49,6 +49,7 @@ import type {
 } from './types.js';
 import { EngineValidationError, EngineNotImplementedError } from './errors.js';
 import { ActionProcessor } from './ActionProcessor.js';
+import type { CustomTileHandlerFn } from './TileResolver.js';
 import { StateMachine } from './StateMachine.js';
 import { WinDetector } from './WinDetector.js';
 import { RuleEngine } from './RuleEngine.js';
@@ -89,11 +90,17 @@ export class GameEngine {
   private readonly ruleEngine: RuleEngine;
   private readonly plugins: readonly EnginePlugin[];
 
-  constructor(plugins: readonly EnginePlugin[] = []) {
+  /**
+   * @param plugins            Optional engine plugins for post-turn hooks.
+   * @param customTileHandlers Optional map of tile-ID → handler for CUSTOM tiles.
+   *                           Provide when loading a MapConfig that uses TileType.CUSTOM.
+   */
+  constructor(
+    plugins: readonly EnginePlugin[] = [],
+    customTileHandlers?: ReadonlyMap<string, CustomTileHandlerFn>,
+  ) {
     this.stateMachine = new StateMachine();
-    // Pass stateMachine so ActionProcessor can call StateMachine.transitionTurn
-    // inside resolveLandingTile and future per-tile handlers.
-    this.actionProcessor = new ActionProcessor(this.stateMachine);
+    this.actionProcessor = new ActionProcessor(this.stateMachine, customTileHandlers);
     this.winDetector = new WinDetector();
     this.ruleEngine = new RuleEngine();
     this.plugins = plugins;

@@ -42,6 +42,8 @@ import type {
   EngineResult,
 } from './types.js';
 import { EngineValidationError, EngineNotImplementedError, EngineStateCorruptionError } from './errors.js';
+import { TileResolver } from './TileResolver.js';
+import type { CustomTileHandlerFn } from './TileResolver.js';
 import { DiceEngine } from './DiceEngine.js';
 import type { DiceRollResult } from './DiceEngine.js';
 import { StateMachine } from './StateMachine.js';
@@ -81,8 +83,18 @@ type InternalHandler = (
 export class ActionProcessor {
   private readonly validators = new Map<ActionType, InternalValidator>();
   private readonly handlers = new Map<ActionType, InternalHandler>();
+  private readonly tileResolver: TileResolver;
 
-  constructor(private readonly stateMachine: StateMachine) {
+  /**
+   * @param stateMachine       Shared StateMachine instance from GameEngine.
+   * @param customTileHandlers Optional map of tile-ID → handler for CUSTOM tiles.
+   *                           Pass at game-start if the map has CUSTOM tile types.
+   */
+  constructor(
+    private readonly stateMachine: StateMachine,
+    customTileHandlers?: ReadonlyMap<string, CustomTileHandlerFn>,
+  ) {
+    this.tileResolver = new TileResolver(customTileHandlers);
     this.registerValidators();
     this.registerHandlers();
   }
@@ -388,9 +400,11 @@ export class ActionProcessor {
     );
 
     // ------------------------------------------------------------------
-    // 7. Resolve the landing tile (stub → transitions to POST_ROLL)
+    // 7. Resolve the landing tile — full TileResolver dispatch
     // ------------------------------------------------------------------
-    const landing = this.resolveLandingTile(currentState, config, toPosition);
+    const landing = this.resolveLandingTile(
+      currentState, config, toPosition, action, actingPlayerId,
+    );
 
     return {
       // Exactly one version increment per action, applied here
@@ -465,55 +479,27 @@ export class ActionProcessor {
   }
 
   /**
-   * Resolve effects of landing on a tile.
+   * Resolve the effects of the player landing on a tile.
    *
-   * This is the entry point for all tile-specific mechanics:
-   * - PROPERTY (unowned): prompt purchase decision
-   * - PROPERTY (owned): collect rent
-   * - TAX: deduct tax
-   * - CHANCE / COMMUNITY_CHEST: draw card
-   * - GO_TO_JAIL: move to jail
-   * - FREE_PARKING: apply house rule if enabled
-   * - GO / JAIL_VISIT: no mandatory effect
-   * - RAILROAD / UTILITY: rent calculation
+   * Delegates entirely to TileResolver which dispatches on TileType.
+   * Every supported tile type is handled; an exhaustive TypeScript switch
+   * in TileResolver will fail at compile time if a new TileType is added
+   * without a corresponding case.
    *
-   * ### Current status: STUB
-   * Transitions directly to POST_ROLL; no tile effects are applied yet.
-   * Each tile type will be implemented as a separate handler in a future task.
-   *
-   * @param state - State after player movement (player already at new position).
-   * @param config - Map configuration.
-   * @param tileIndex - Zero-based board index of the tile the player landed on.
+   * @param state          State after movement (player at new position, ROLLED phase).
+   * @param config         Map configuration.
+   * @param tileIndex      Zero-based board index of the tile landed on.
+   * @param action         The originating ROLL_DICE action.
+   * @param actingPlayerId JWT-verified acting player.
    */
   private resolveLandingTile(
     state: GameState,
     config: MapConfig,
     tileIndex: number,
+    action: ClientAction,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    // TODO: Implement per-tile landing logic for all TileTypes:
-    //   PROPERTY (unowned)  → pendingDecision = PURCHASE, phase = PURCHASE_DECISION
-    //   PROPERTY (owned)    → calculate & collect rent
-    //   RAILROAD (owned)    → calculate & collect railroad rent
-    //   UTILITY (owned)     → calculate & collect utility rent
-    //   TAX                 → deduct tax (fixed or percentage)
-    //   CHANCE              → draw top Chance card, apply effect
-    //   COMMUNITY_CHEST     → draw top Community Chest card, apply effect
-    //   GO_TO_JAIL          → move player to jail tile, set jailState
-    //   FREE_PARKING        → collect pot if freeParkingMoney rule enabled
-    //   GO / JAIL_VISIT     → no mandatory effect
-    //   CUSTOM              → delegate to registered custom tile handler
-
-    // Stub: transition to POST_ROLL so the player can END_TURN
-    const newTurnState: TurnState = {
-      ...state.turn,
-      phase: TurnPhase.POST_ROLL,
-      pendingDecision: null,
-    };
-
-    return {
-      newState: { ...state, turn: newTurnState },
-      events: [],
-    };
+    return this.tileResolver.resolve(state, tileIndex, config, action, actingPlayerId);
   }
 
   // =========================================================================

@@ -10,7 +10,7 @@
 // - Custom card effects are dispatched to CardHandlerRegistry.
 // =============================================================================
 
-import { CardDeckType } from '@monopoly/shared';
+import { CardDeckType, CardEffectType } from '@monopoly/shared';
 import type { GameState, PlayerId, RNGState, CardDeckState } from '@monopoly/shared';
 import type { MapConfig, CardConfig } from '@monopoly/shared';
 import type { EngineResult, CardHandler } from './types.js';
@@ -179,29 +179,29 @@ export class CardEngine {
     const { effect } = cardConfig;
 
     switch (effect.type) {
-      case 'COLLECT_FROM_BANK':
+      case CardEffectType.COLLECT_FROM_BANK:
         return this.applyCollectFromBank(state, cardConfig, playerId, mapConfig);
-      case 'PAY_TO_BANK':
+      case CardEffectType.PAY_TO_BANK:
         return this.applyPayToBank(state, cardConfig, playerId, mapConfig);
-      case 'COLLECT_FROM_PLAYERS':
+      case CardEffectType.COLLECT_FROM_PLAYERS:
         return this.applyCollectFromPlayers(state, cardConfig, playerId, mapConfig);
-      case 'PAY_TO_PLAYERS':
+      case CardEffectType.PAY_TO_PLAYERS:
         return this.applyPayToPlayers(state, cardConfig, playerId, mapConfig);
-      case 'MOVE_TO_TILE':
+      case CardEffectType.MOVE_TO_TILE:
         return this.applyMoveToTile(state, cardConfig, playerId, mapConfig);
-      case 'MOVE_FORWARD':
+      case CardEffectType.MOVE_FORWARD:
         return this.applyMoveForward(state, cardConfig, playerId, mapConfig);
-      case 'MOVE_BACKWARD':
+      case CardEffectType.MOVE_BACKWARD:
         return this.applyMoveBackward(state, cardConfig, playerId, mapConfig);
-      case 'MOVE_TO_NEAREST':
+      case CardEffectType.MOVE_TO_NEAREST:
         return this.applyMoveToNearest(state, cardConfig, playerId, mapConfig);
-      case 'GO_TO_JAIL':
+      case CardEffectType.GO_TO_JAIL:
         return this.applyGoToJail(state, cardConfig, playerId, mapConfig);
-      case 'GET_OUT_OF_JAIL_FREE':
+      case CardEffectType.GET_OUT_OF_JAIL_FREE:
         return this.applyGetOutOfJailFree(state, cardConfig, playerId, mapConfig);
-      case 'REPAIRS':
+      case CardEffectType.REPAIRS:
         return this.applyRepairs(state, cardConfig, playerId, mapConfig);
-      case 'CUSTOM':
+      case CardEffectType.CUSTOM:
         return this.applyCustomEffect(state, cardConfig, playerId, mapConfig);
       default: {
         const _exhaustive: never = effect.type;
