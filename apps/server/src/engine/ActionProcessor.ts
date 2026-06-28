@@ -17,6 +17,8 @@ import {
   TurnPhase,
   EventType,
   JailReason,
+  DecisionType,
+  TileType,
 } from '@monopoly/shared';
 import type {
   GameState,
@@ -33,6 +35,8 @@ import type {
   PlayerMovedEvent,
   PlayerPassedGoEvent,
   PlayerJailedEvent,
+  PropertyPurchasedEvent,
+  MonopolyCompletedEvent,
   GameEvent,
 } from '@monopoly/shared';
 import type {
@@ -570,22 +574,169 @@ export class ActionProcessor {
   private validateBuyProperty(
     state: GameState,
     _action: ClientAction,
-    _config: MapConfig,
+    config: MapConfig,
     actingPlayerId: PlayerId,
   ): ValidationResult {
     const base = this.baseGameplayValidation(state, actingPlayerId);
     if (!base.valid) return base;
-    // TODO: Validate pending decision is PURCHASE, player has funds
+
+    if (state.turn.phase !== TurnPhase.PURCHASE_DECISION) {
+      return fail(ErrorCode.E_INVALID_PHASE, `Cannot buy property in phase ${state.turn.phase}`);
+    }
+
+    const decision = state.turn.pendingDecision;
+    if (!decision || decision.type !== DecisionType.PURCHASE) {
+      return fail(ErrorCode.E_INVALID_PHASE, 'No pending purchase decision found');
+    }
+
+    const tileId = decision.tileId;
+    const tileState = state.board.tiles[tileId];
+    if (!tileState) {
+      throw new EngineStateCorruptionError(`TileState missing for tile ${tileId}`);
+    }
+
+    if (tileState.ownerId !== null) {
+      return fail(ErrorCode.E_PROPERTY_OWNED, `Property ${tileId} is already owned by ${tileState.ownerId}`);
+    }
+
+    const tileConfig = config.board.tiles.find(t => t.id === tileId);
+    if (!tileConfig) {
+      throw new EngineStateCorruptionError(`MapConfig missing tile ${tileId}`);
+    }
+
+    let price = 0;
+    if (tileConfig.type === TileType.PROPERTY && tileConfig.propertyData) {
+      price = tileConfig.propertyData.price;
+    } else if (tileConfig.type === TileType.RAILROAD && tileConfig.railroadData) {
+      price = tileConfig.railroadData.price;
+    } else if (tileConfig.type === TileType.UTILITY && tileConfig.utilityData) {
+      price = tileConfig.utilityData.price;
+    } else {
+      throw new EngineStateCorruptionError(`Tile ${tileId} is not a purchasable type`);
+    }
+
+    const player = state.players[actingPlayerId];
+    if (!player) {
+      throw new EngineStateCorruptionError(`Player ${actingPlayerId} missing`);
+    }
+
+    if (player.money < price) {
+      return fail(ErrorCode.E_INSUFFICIENT_FUNDS, `Insufficient funds to buy ${tileId}`);
+    }
+
     return ok();
   }
 
   private handleBuyProperty(
     state: GameState,
-    _action: ClientAction,
-    _config: MapConfig,
-    _actingPlayerId: PlayerId,
+    action: ClientAction,
+    config: MapConfig,
+    actingPlayerId: PlayerId,
   ): EngineResult {
-    throw new EngineNotImplementedError('ActionProcessor.handleBuyProperty');
+    const decision = state.turn.pendingDecision!;
+    const tileId = decision.tileId;
+    const tileConfig = config.board.tiles.find(t => t.id === tileId)!;
+
+    let price = 0;
+    let groupId: string | null = null;
+    if (tileConfig.type === TileType.PROPERTY && tileConfig.propertyData) {
+      price = tileConfig.propertyData.price;
+      groupId = tileConfig.propertyData.groupId;
+    } else if (tileConfig.type === TileType.RAILROAD && tileConfig.railroadData) {
+      price = tileConfig.railroadData.price;
+    } else if (tileConfig.type === TileType.UTILITY && tileConfig.utilityData) {
+      price = tileConfig.utilityData.price;
+    }
+
+    const player = state.players[actingPlayerId]!;
+    
+    // 1. Deduct money from player and give to bank
+    const newPlayerMoney = player.money - price;
+    const newBankMoney = state.bank.money + price;
+
+    // 2. Add tile to player properties
+    const newProperties = [...player.properties, tileId];
+
+    // 3. Update TileState
+    const newTileState = {
+      ...state.board.tiles[tileId]!,
+      ownerId: actingPlayerId,
+    };
+
+    // 4. Check for completed color group (monopoly)
+    let completedGroup = false;
+    if (groupId) {
+      const groupConfig = config.board.propertyGroups?.find(g => g.id === groupId);
+      if (groupConfig) {
+        // Is every tile in the group now owned by this player?
+        completedGroup = groupConfig.tileIds.every(tId => newProperties.includes(tId as TileId));
+      }
+    }
+
+    const events: GameEvent[] = [];
+
+    // PROPERTY_PURCHASED event
+    events.push({
+      id: `${action.actionId}::PROPERTY_PURCHASED`,
+      type: EventType.PROPERTY_PURCHASED,
+      roomId: state.roomId,
+      gameId: state.gameId,
+      audience: { type: 'ALL' },
+      ts: action.clientTs,
+      payload: {
+        playerId: actingPlayerId,
+        tileId: tileId,
+        price: price,
+      },
+    });
+
+    if (completedGroup && groupId) {
+      events.push({
+        id: `${action.actionId}::MONOPOLY_COMPLETED`,
+        type: EventType.MONOPOLY_COMPLETED,
+        roomId: state.roomId,
+        gameId: state.gameId,
+        audience: { type: 'ALL' },
+        ts: action.clientTs,
+        payload: {
+          playerId: actingPlayerId,
+          groupId: groupId,
+        },
+      });
+    }
+
+    // 5. Build new state
+    const newState: GameState = {
+      ...state,
+      version: state.version + 1,
+      bank: {
+        ...state.bank,
+        money: state.bank.infiniteMoney ? state.bank.money : newBankMoney,
+      },
+      players: {
+        ...state.players,
+        [actingPlayerId]: {
+          ...player,
+          money: newPlayerMoney,
+          properties: newProperties,
+          // Note: netWorth does not change since cash - price + asset value cancels out
+        },
+      },
+      board: {
+        ...state.board,
+        tiles: {
+          ...state.board.tiles,
+          [tileId]: newTileState,
+        },
+      },
+      turn: {
+        ...state.turn,
+        phase: TurnPhase.POST_ROLL,
+        pendingDecision: null,
+      },
+    };
+
+    return { newState, events };
   }
 
   // =========================================================================

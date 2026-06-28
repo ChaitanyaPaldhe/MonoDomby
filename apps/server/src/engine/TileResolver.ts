@@ -50,6 +50,7 @@ import type {
 import type { EngineResult } from './types.js';
 import { EngineStateCorruptionError } from './errors.js';
 import { DiceEngine } from './DiceEngine.js';
+import { RentCalculator } from './RentCalculator.js';
 
 // ---------------------------------------------------------------------------
 // Custom Tile Handler Interface
@@ -167,13 +168,13 @@ export class TileResolver {
         return this.resolveFreeParking(state, config);
 
       case TileType.PROPERTY:
-        return this.resolveProperty(state, tile, actingPlayerId);
+        return this.resolveProperty(state, tile, config, action, actingPlayerId);
 
       case TileType.RAILROAD:
-        return this.resolveRailroad(state, tile, actingPlayerId);
+        return this.resolveRailroad(state, tile, config, action, actingPlayerId);
 
       case TileType.UTILITY:
-        return this.resolveUtility(state, tile, actingPlayerId);
+        return this.resolveUtility(state, tile, config, action, actingPlayerId);
 
       case TileType.CHANCE:
         return this.resolveChance(state, config, action, actingPlayerId);
@@ -274,6 +275,8 @@ export class TileResolver {
   private resolveProperty(
     state: GameState,
     tile: Tile,
+    config: MapConfig,
+    action: ClientAction,
     actingPlayerId: PlayerId,
   ): EngineResult {
     const tileId = tile.id as TileId;
@@ -296,8 +299,7 @@ export class TileResolver {
     }
 
     // Another player owns it (unmortgaged) → rent due
-    // TODO: implement rent calculation
-    return { newState: this.toPostRoll(state), events: [] };
+    return RentCalculator.processRent(state, tile, config, action, actingPlayerId);
   }
 
   // =========================================================================
@@ -320,6 +322,8 @@ export class TileResolver {
   private resolveRailroad(
     state: GameState,
     tile: Tile,
+    config: MapConfig,
+    action: ClientAction,
     actingPlayerId: PlayerId,
   ): EngineResult {
     const tileId = tile.id as TileId;
@@ -340,8 +344,7 @@ export class TileResolver {
     }
 
     // Another player's railroad → rent due
-    // TODO: implement railroad rent
-    return { newState: this.toPostRoll(state), events: [] };
+    return RentCalculator.processRent(state, tile, config, action, actingPlayerId);
   }
 
   // =========================================================================
@@ -365,6 +368,8 @@ export class TileResolver {
   private resolveUtility(
     state: GameState,
     tile: Tile,
+    config: MapConfig,
+    action: ClientAction,
     actingPlayerId: PlayerId,
   ): EngineResult {
     const tileId = tile.id as TileId;
@@ -385,8 +390,7 @@ export class TileResolver {
     }
 
     // Another player's utility → rent due
-    // TODO: implement utility rent
-    return { newState: this.toPostRoll(state), events: [] };
+    return RentCalculator.processRent(state, tile, config, action, actingPlayerId);
   }
 
   // =========================================================================

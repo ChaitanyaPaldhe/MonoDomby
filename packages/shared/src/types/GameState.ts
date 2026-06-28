@@ -285,6 +285,13 @@ export type PendingDecision =
       readonly amountOwed: number;
     }
   | {
+      readonly type: DecisionType.INSUFFICIENT_FUNDS;
+      /** The player or bank that is owed money. Null = owed to bank. */
+      readonly creditorId: PlayerId | null;
+      /** Total amount that must be raised. */
+      readonly amountOwed: number;
+    }
+  | {
       readonly type: DecisionType.CARD_EFFECT;
       readonly cardId: string;
       readonly deckType: CardDeckType;

@@ -36,10 +36,14 @@ export enum EventType {
 
   // Property
   PROPERTY_PURCHASED = 'PROPERTY_PURCHASED',
+  MONOPOLY_COMPLETED = 'MONOPOLY_COMPLETED',
   PROPERTY_AUCTIONED_START = 'PROPERTY_AUCTIONED_START',
   PROPERTY_AUCTIONED_SOLD = 'PROPERTY_AUCTIONED_SOLD',
   PROPERTY_AUCTIONED_UNSOLD = 'PROPERTY_AUCTIONED_UNSOLD',
+  RENT_CALCULATED = 'RENT_CALCULATED',
   RENT_PAID = 'RENT_PAID',
+  MONOPOLY_RENT_APPLIED = 'MONOPOLY_RENT_APPLIED',
+  INSUFFICIENT_FUNDS = 'INSUFFICIENT_FUNDS',
   HOUSE_BUILT = 'HOUSE_BUILT',
   HOTEL_BUILT = 'HOTEL_BUILT',
   HOUSE_SOLD = 'HOUSE_SOLD',
@@ -138,10 +142,44 @@ export interface PropertyPurchasedPayload {
   readonly price: number;
 }
 
+export interface MonopolyCompletedPayload {
+  readonly playerId: PlayerId;
+  readonly groupId: string;
+}
+
 export interface PropertyAuctionedStartPayload {
   readonly tileId: TileId;
   readonly startingBid: number;
   readonly auction: AuctionState;
+}
+
+export interface RentCalculatedPayload {
+  readonly payerId: PlayerId;
+  readonly payeeId: PlayerId | null; // null if paid to bank
+  readonly tileId: TileId;
+  readonly amount: number;
+}
+
+export interface RentPaidPayload {
+  readonly payerId: PlayerId;
+  readonly payeeId: PlayerId | null; // null if paid to bank
+  readonly tileId: TileId;
+  readonly amount: number;
+}
+
+export interface MonopolyRentAppliedPayload {
+  readonly payerId: PlayerId;
+  readonly payeeId: PlayerId;
+  readonly tileId: TileId;
+  readonly groupId: string;
+  readonly baseAmount: number;
+  readonly newAmount: number;
+}
+
+export interface InsufficientFundsPayload {
+  readonly playerId: PlayerId;
+  readonly creditorId: PlayerId | null; // null if bank
+  readonly amountOwed: number;
 }
 
 export interface PropertyAuctionedSoldPayload {
@@ -383,10 +421,14 @@ export type PlayerPassedGoEvent = BaseEvent<EventType.PLAYER_PASSED_GO, PlayerPa
 export type DiceRolledEvent = BaseEvent<EventType.DICE_ROLLED, DiceRolledPayload>;
 
 export type PropertyPurchasedEvent = BaseEvent<EventType.PROPERTY_PURCHASED, PropertyPurchasedPayload>;
+export type MonopolyCompletedEvent = BaseEvent<EventType.MONOPOLY_COMPLETED, MonopolyCompletedPayload>;
 export type PropertyAuctionedStartEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_START, PropertyAuctionedStartPayload>;
 export type PropertyAuctionedSoldEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_SOLD, PropertyAuctionedSoldPayload>;
 export type PropertyAuctionedUnsoldEvent = BaseEvent<EventType.PROPERTY_AUCTIONED_UNSOLD, PropertyAuctionedUnsoldPayload>;
+export type RentCalculatedEvent = BaseEvent<EventType.RENT_CALCULATED, RentCalculatedPayload>;
 export type RentPaidEvent = BaseEvent<EventType.RENT_PAID, RentPaidPayload>;
+export type MonopolyRentAppliedEvent = BaseEvent<EventType.MONOPOLY_RENT_APPLIED, MonopolyRentAppliedPayload>;
+export type InsufficientFundsEvent = BaseEvent<EventType.INSUFFICIENT_FUNDS, InsufficientFundsPayload>;
 export type HouseBuiltEvent = BaseEvent<EventType.HOUSE_BUILT, HouseBuiltPayload>;
 export type HotelBuiltEvent = BaseEvent<EventType.HOTEL_BUILT, HotelBuiltPayload>;
 export type HouseSoldEvent = BaseEvent<EventType.HOUSE_SOLD, HouseSoldPayload>;
@@ -441,10 +483,14 @@ export type GameEvent =
   | PlayerPassedGoEvent
   | DiceRolledEvent
   | PropertyPurchasedEvent
+  | MonopolyCompletedEvent
   | PropertyAuctionedStartEvent
   | PropertyAuctionedSoldEvent
   | PropertyAuctionedUnsoldEvent
+  | RentCalculatedEvent
   | RentPaidEvent
+  | MonopolyRentAppliedEvent
+  | InsufficientFundsEvent
   | HouseBuiltEvent
   | HotelBuiltEvent
   | HouseSoldEvent

@@ -463,18 +463,20 @@ describe('TileResolver', () => {
     });
 
     describe('property owned by another player (unmortgaged)', () => {
-      it('transitions to POST_ROLL (rent stub)', () => {
+      it('processes rent and transitions to POST_ROLL', () => {
         const base = stateAtTile(initialState, 1);
         const state = withTileOwner(base, 'prop-a' as TileId, P2);
         const result = resolver.resolve(state, 1, config, action, P1);
         expect(result.newState.turn.phase).toBe(TurnPhase.POST_ROLL);
       });
 
-      it('emits no events (rent collection not yet implemented)', () => {
+      it('emits RENT_CALCULATED and RENT_PAID events', () => {
         const base = stateAtTile(initialState, 1);
         const state = withTileOwner(base, 'prop-a' as TileId, P2);
         const result = resolver.resolve(state, 1, config, action, P1);
-        expect(result.events).toHaveLength(0);
+        expect(result.events.length).toBeGreaterThan(0);
+        expect(result.events.some(e => e.type === EventType.RENT_CALCULATED)).toBe(true);
+        expect(result.events.some(e => e.type === EventType.RENT_PAID)).toBe(true);
       });
     });
 
@@ -553,11 +555,12 @@ describe('TileResolver', () => {
     });
 
     describe('another player\'s railroad', () => {
-      it('transitions to POST_ROLL (rent stub)', () => {
+      it('processes rent and transitions to POST_ROLL', () => {
         const base = stateAtTile(initialState, 2);
         const state = withTileOwner(base, 'railroad' as TileId, P2);
         const result = resolver.resolve(state, 2, config, action, P1);
         expect(result.newState.turn.phase).toBe(TurnPhase.POST_ROLL);
+        expect(result.events.some(e => e.type === EventType.RENT_CALCULATED)).toBe(true);
       });
     });
 
@@ -608,11 +611,13 @@ describe('TileResolver', () => {
     });
 
     describe('another player\'s utility', () => {
-      it('transitions to POST_ROLL (rent stub)', () => {
+      it('processes rent and transitions to POST_ROLL', () => {
         const base = stateAtTile(initialState, 3);
-        const state = withTileOwner(base, 'utility' as TileId, P2);
+        const stateWithDice = { ...base, turn: { ...base.turn, diceValues: [3, 4] as const } };
+        const state = withTileOwner(stateWithDice, 'utility' as TileId, P2);
         const result = resolver.resolve(state, 3, config, action, P1);
         expect(result.newState.turn.phase).toBe(TurnPhase.POST_ROLL);
+        expect(result.events.some(e => e.type === EventType.RENT_CALCULATED)).toBe(true);
       });
     });
 
