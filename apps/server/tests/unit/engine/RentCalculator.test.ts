@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { RentCalculator } from '../../../src/engine/RentCalculator.js';
+import { RentCalculator } from '@monopoly/engine';
 import { EventType, DecisionType, TurnPhase } from '@monopoly/shared';
-import type { MapConfig, GameState, PlayerState, ClientAction, TileId, PlayerId } from '@monopoly/shared';
+import type { MapConfig } from '@monopoly/maps';
+import type { GameState, PlayerState, ClientAction, TileId, PlayerId } from '@monopoly/shared';;
 
 describe('RentCalculator', () => {
   const PLAYER_1 = 'player-1' as PlayerId;

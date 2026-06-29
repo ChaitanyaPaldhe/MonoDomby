@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { GameEngine } from '../../src/engine/GameEngine.js';
-import { PropertyTransactionPlanner } from '../../src/engine/PropertyTransactionPlanner.js';
-import { MortgagePlanner } from '../../src/engine/MortgagePlanner.js';
-import { canManageProperties } from '../../src/engine/utils/PhaseUtils.js';
+import { GameEngine } from '@monopoly/engine';
+import { PropertyTransactionPlanner } from '@monopoly/engine';
+import { MortgagePlanner } from '@monopoly/engine';
+import { canManageProperties } from '@monopoly/engine';
 import { ErrorCode } from '@monopoly/shared';
 import {
   ActionType,
@@ -11,14 +11,8 @@ import {
   DecisionType,
   WinCondition,
 } from '@monopoly/shared';
-import type {
-  PlayerId,
-  GameState,
-  MapConfig,
-  ClientAction,
-  Tile,
-  PropertyData,
-} from '@monopoly/shared';
+import type { MapConfig, Tile, PropertyData } from '@monopoly/maps';
+import type { PlayerId, GameState, ClientAction } from '@monopoly/shared';;
 
 // ---------------------------------------------------------------------------
 // Helpers

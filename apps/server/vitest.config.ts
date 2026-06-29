@@ -20,6 +20,9 @@ export default defineConfig({
       // Vitest uses Vite's esbuild transform so .ts → .js transpilation
       // is handled without a separate compilation step.
       '@monopoly/shared': resolve(__dirname, '../../packages/shared/src/index.ts'),
+      '@monopoly/engine': resolve(__dirname, '../../packages/engine/src/index.ts'),
+      '@monopoly/maps': resolve(__dirname, '../../packages/maps/src/index.ts'),
+      '@monopoly/protocol': resolve(__dirname, '../../packages/protocol/src/index.ts'),
     },
   },
   test: {

@@ -12,8 +12,8 @@
 // =============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameEngine } from '../../../src/engine/GameEngine.js';
-import type { CreateGameParams } from '../../../src/engine/types.js';
+import { GameEngine } from '@monopoly/engine';
+import type { CreateGameParams } from '@monopoly/engine';
 import {
   ActionType,
   GamePhase,
@@ -24,15 +24,8 @@ import {
   ErrorCode,
   WinCondition,
 } from '@monopoly/shared';
-import type {
-  PlayerId,
-  GameState,
-  MapConfig,
-  ClientAction,
-  PropertyPurchasedPayload,
-  MonopolyCompletedPayload,
-  TileId,
-} from '@monopoly/shared';
+import type { MapConfig } from '@monopoly/maps';
+import type { PlayerId, GameState, ClientAction, PropertyPurchasedPayload, MonopolyCompletedPayload, TileId } from '@monopoly/shared';;
 
 // ---------------------------------------------------------------------------
 // Test map

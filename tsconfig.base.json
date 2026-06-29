@@ -16,6 +16,16 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
-    "incremental": true
+    "incremental": true,
+    "paths": {
+      "@monopoly/shared": ["./packages/shared/src/index.ts"],
+      "@monopoly/shared/*": ["./packages/shared/src/*"],
+      "@monopoly/engine": ["./packages/engine/src/index.ts"],
+      "@monopoly/engine/*": ["./packages/engine/src/*"],
+      "@monopoly/maps": ["./packages/maps/src/index.ts"],
+      "@monopoly/maps/*": ["./packages/maps/src/*"],
+      "@monopoly/protocol": ["./packages/protocol/src/index.ts"],
+      "@monopoly/protocol/*": ["./packages/protocol/src/*"]
+    }
   }
 }

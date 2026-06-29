@@ -32,11 +32,11 @@
 // =============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameEngine } from '../../../src/engine/GameEngine.js';
-import { TileResolver } from '../../../src/engine/TileResolver.js';
-import type { CustomTileHandlerFn } from '../../../src/engine/TileResolver.js';
-import { EngineStateCorruptionError } from '../../../src/engine/errors.js';
-import type { CreateGameParams } from '../../../src/engine/types.js';
+import { GameEngine } from '@monopoly/engine';
+import { TileResolver } from '@monopoly/engine';
+import type { CustomTileHandlerFn } from '@monopoly/engine';
+import { EngineStateCorruptionError } from '@monopoly/engine';
+import type { CreateGameParams } from '@monopoly/engine';
 import {
   ActionType,
   GamePhase,
@@ -50,14 +50,8 @@ import {
   WinCondition,
   TaxDestination,
 } from '@monopoly/shared';
-import type {
-  PlayerId,
-  GameState,
-  MapConfig,
-  Tile,
-  TileId,
-  ClientAction,
-} from '@monopoly/shared';
+import type { MapConfig, Tile } from '@monopoly/maps';
+import type { PlayerId, GameState, TileId, ClientAction } from '@monopoly/shared';;
 
 // =============================================================================
 //  Test Map Fixture

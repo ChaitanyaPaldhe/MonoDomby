@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameEngine } from '../../../src/engine/GameEngine.js';
-import { EngineValidationError } from '../../../src/engine/errors.js';
+import { GameEngine } from '@monopoly/engine';
+import { EngineValidationError } from '@monopoly/engine';
 import { ActionType, EventType, TurnPhase, GamePhase, WinCondition } from '@monopoly/shared';
-import type { GameState, MapConfig, PlayerId, ClientAction } from '@monopoly/shared';
+import type { MapConfig } from '@monopoly/maps';
+import type { GameState, PlayerId, ClientAction } from '@monopoly/shared';;
 
 describe('END_TURN Action', () => {
   const P1 = 'player-1' as PlayerId;

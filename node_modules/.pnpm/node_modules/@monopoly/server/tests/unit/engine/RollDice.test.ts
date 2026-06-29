@@ -18,10 +18,10 @@
 // =============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GameEngine } from '../../../src/engine/GameEngine.js';
-import { DiceEngine } from '../../../src/engine/DiceEngine.js';
-import type { DiceRollResult } from '../../../src/engine/DiceEngine.js';
-import type { CreateGameParams } from '../../../src/engine/types.js';
+import { GameEngine } from '@monopoly/engine';
+import { DiceEngine } from '@monopoly/engine';
+import type { DiceRollResult } from '@monopoly/engine';
+import type { CreateGameParams } from '@monopoly/engine';
 import {
   ActionType,
   GamePhase,
@@ -36,16 +36,8 @@ import {
   TaxDestination,
   ErrorCode,
 } from '@monopoly/shared';
-import type {
-  PlayerId,
-  GameState,
-  MapConfig,
-  RNGState,
-  DiceRolledPayload,
-  PlayerMovedPayload,
-  PlayerPassedGoPayload,
-  PlayerJailedPayload,
-} from '@monopoly/shared';
+import type { MapConfig } from '@monopoly/maps';
+import type { PlayerId, GameState, RNGState, DiceRolledPayload, PlayerMovedPayload, PlayerPassedGoPayload, PlayerJailedPayload } from '@monopoly/shared';;
 
 // ---------------------------------------------------------------------------
 // Test map (board.size = 10, jailTileIndex = 3)

@@ -16,9 +16,9 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { GameEngine } from '../../../src/engine/GameEngine.js';
-import { DiceEngine } from '../../../src/engine/DiceEngine.js';
-import type { CreateGameParams } from '../../../src/engine/types.js';
+import { GameEngine } from '@monopoly/engine';
+import { DiceEngine } from '@monopoly/engine';
+import type { CreateGameParams } from '@monopoly/engine';
 
 import {
   GamePhase,
@@ -31,7 +31,8 @@ import {
   EventType,
   TaxDestination,
 } from '@monopoly/shared';
-import type { MapConfig, PlayerId, GameState } from '@monopoly/shared';
+import type { MapConfig } from '@monopoly/maps';
+import type { PlayerId, GameState } from '@monopoly/shared';;
 
 // =============================================================================
 // Fixtures

@@ -1,0 +1,20 @@
+{
+  "name": "@monopoly/engine",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@monopoly/shared": "workspace:*",
+    "@monopoly/maps": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "eslint": "^9.11.0"
+  }
+}

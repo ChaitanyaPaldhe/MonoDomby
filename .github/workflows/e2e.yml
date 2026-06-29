@@ -1,0 +1,69 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: monopoly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        
+    - name: Install pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 9
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build workspace
+      run: pnpm run build
+
+    - name: Install Playwright Browsers
+      run: pnpm exec playwright install --with-deps
+
+    - name: Run SQL Migrations
+      env:
+        DATABASE_URL: postgres://postgres:password@localhost:5432/monopoly
+      run: |
+        # In a real pipeline, run the migration runner here against the postgres service.
+        # e.g., psql $DATABASE_URL -f apps/server/src/persistence/migrations/0001_initial.sql
+        PGPASSWORD=password psql -h localhost -U postgres -d monopoly -f apps/server/src/persistence/migrations/0001_initial.sql
+
+    - name: Run Playwright tests
+      env:
+        DATABASE_URL: postgres://postgres:password@localhost:5432/monopoly
+      run: pnpm exec playwright test
+      
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30

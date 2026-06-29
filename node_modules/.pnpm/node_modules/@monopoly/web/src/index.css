@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* 
+  Vibrant Monopoly Color Theme 
+  This can be expanded with specific brand colors, but Tailwind v4's 
+  utility-first approach works great with @import "tailwindcss" out of the box.
+*/
+
+@theme {
+  --color-monopoly-red: #E3000F;
+  --color-monopoly-green: #00A650;
+  --color-monopoly-blue: #0066A4;
+  --color-monopoly-yellow: #FFD900;
+  
+  --color-board-bg: #D4F0DF;
+}

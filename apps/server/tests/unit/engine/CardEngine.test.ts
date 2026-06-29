@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CardEngine } from '../../../src/engine/CardEngine.js';
-import { CardEffectRegistry } from '../../../src/engine/CardEffectRegistry.js';
-import { TileResolver } from '../../../src/engine/TileResolver.js';
+import { CardEngine } from '@monopoly/engine';
+import { CardEffectRegistry } from '@monopoly/engine';
+import { TileResolver } from '@monopoly/engine';
 import { CardEffectType, CardDeckType, EventType, TurnPhase, GamePhase } from '@monopoly/shared';
-import type { GameState, MapConfig, ClientAction, CardAppliedEvent } from '@monopoly/shared';
-import { EngineStateCorruptionError } from '../../../src/engine/errors.js';
+import type { MapConfig } from '@monopoly/maps';
+import type { GameState, ClientAction, CardAppliedEvent } from '@monopoly/shared';;
+import { EngineStateCorruptionError } from '@monopoly/engine';
 
 describe('CardEngine', () => {
   let engine: CardEngine;
