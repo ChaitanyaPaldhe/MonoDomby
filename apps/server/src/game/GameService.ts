@@ -10,8 +10,8 @@ export class GameService {
   private roomManager: RoomManager;
 
   constructor(
-    engine: GameEngine,
-    mapConfig: MapConfig,
+    private engine: GameEngine,
+    private mapConfig: MapConfig,
     defaultRoomConfig: RoomConfig,
     persistAction: PersistActionFn,
     persistSnapshot: PersistSnapshotFn,
@@ -27,12 +27,21 @@ export class GameService {
     );
   }
 
-  public createRoom(roomId: string, initialState: GameState, configOverrides?: Partial<RoomConfig>): Room {
-    return this.roomManager.createRoom(roomId, initialState, configOverrides);
+  public createRoom(roomId: string, hostPlayerId: PlayerId, socketId: string, configOverrides?: Partial<RoomConfig>): Room {
+    console.log(`[SERVER: GameService] createRoom called for roomId: ${roomId}`);
+    const room = this.roomManager.createRoom(roomId, configOverrides);
+    this.roomManager.joinRoom(roomId, hostPlayerId, socketId, false);
+    console.log(`[SERVER: GameService] createRoom complete. Room players:`, Array.from(room.players.keys()));
+    return room;
   }
 
   public joinRoom(roomId: string, playerId: PlayerId, socketId: string): void {
+    console.log(`[SERVER: GameService] joinRoom called for roomId: ${roomId}, playerId: ${playerId}`);
     this.roomManager.joinRoom(roomId, playerId, socketId, false);
+    const room = this.roomManager.getRoom(roomId);
+    if (room) {
+      console.log(`[SERVER: GameService] joinRoom complete. Room players:`, Array.from(room.players.keys()));
+    }
   }
 
   public spectate(roomId: string, playerId: PlayerId, socketId: string): void {
@@ -41,7 +50,7 @@ export class GameService {
 
   public leaveRoom(roomId: string, playerId: PlayerId): void {
     this.roomManager.leaveRoom(roomId, playerId);
-    
+
     // In a complete implementation, this might trigger a reconnect timer for active players
     const room = this.roomManager.getRoom(roomId);
     if (room && room.state === RoomState.RUNNING && room.players.has(playerId)) {
@@ -62,22 +71,48 @@ export class GameService {
   }
 
   public startGame(roomId: string): void {
+    console.log(`[SERVER: GameService] startGame called for roomId: ${roomId}`);
     const room = this.roomManager.getRoom(roomId);
     if (!room) throw new Error('Room not found');
-    if (room.state !== RoomState.STARTING) throw new Error('Cannot start room');
+    if (room.state !== RoomState.WAITING) throw new Error('Cannot start room');
+
+    console.log(
+      `[SERVER: GameService] startGame proceeding. Room players before createInitialState:`,
+      Array.from(room.players.keys())
+    );
+
+    const players = Array.from(room.players.values()).map(p => ({
+      userId: p.playerId,
+      playerId: p.playerId,
+      displayName: p.playerId,
+      avatarUrl: '',
+      tokenId: ''
+    }));
+
+    const result = GameEngine.createInitialState({
+      gameId: roomId,
+      roomId,
+      mapConfig: this.mapConfig,
+      players,
+      createdAt: Date.now()
+    });
+
+    this.roomManager.initializeRoomGame(roomId, result.newState);
 
     room.state = RoomState.RUNNING;
-    
-    // Begin turn timer for the first player
+
     this.startTurnTimer(room);
-  }
+
+    console.log("5. startTurnTimer finished");
+  }   // <-- THIS BRACE WAS MISSING
+
 
   public applyPlayerAction(roomId: string, action: ClientAction): void {
     const room = this.roomManager.getRoom(roomId);
     if (!room) throw new Error('Room not found');
 
     room.enqueueAction(action);
-    
+
     // If the action successfully advanced the turn, the timer needs resetting.
     // In a fully integrated system, the GameService would subscribe to engine events 
     // (e.g. TURN_ENDED, AUCTION_STARTED) to manage timers correctly, or we can check the 
@@ -90,12 +125,14 @@ export class GameService {
 
   public startTurnTimer(room: Room): void {
     const state = room.getGameState();
+    if (!state) return;
     const currentPlayer = state.turn.currentPlayerId;
 
     room.timerManager.schedule(`turn-${currentPlayer}`, room.config.turnTimeoutMs, () => {
       if (room.state !== RoomState.RUNNING) return;
-      
+
       const current = room.getGameState();
+      if (!current) return;
       if (current.turn.currentPlayerId === currentPlayer) {
         const action = SystemActionFactory.createAutoEndTurn(current, currentPlayer);
         room.enqueueAction(action);
@@ -106,11 +143,34 @@ export class GameService {
   public startReconnectTimer(room: Room, playerId: PlayerId): void {
     room.timerManager.schedule(`reconnect-${playerId}`, room.config.reconnectTimeoutMs, () => {
       if (room.state !== RoomState.RUNNING) return;
-      
+
       const current = room.getGameState();
+      if (!current) return;
       const action = SystemActionFactory.createAutoBankruptcy(current, playerId);
       room.enqueueAction(action);
     });
+  }
+
+  // --- Data Access ---
+
+  public getGameState(roomId: string): GameState | undefined {
+    const room = this.roomManager.getRoom(roomId);
+    if (!room) return undefined;
+    return room.getGameState();
+  }
+
+  public getLobbyState(roomId: string): { players: string[], state?: GameState, roomState: string } | undefined {
+    const room = this.roomManager.getRoom(roomId);
+    if (!room) return undefined;
+    const result: { players: string[], state?: GameState, roomState: string } = {
+      players: Array.from(room.players.keys()),
+      roomState: room.state
+    };
+    const state = room.getGameState();
+    if (state) {
+      result.state = state;
+    }
+    return result;
   }
 
   // --- Persistence & Replay ---
@@ -118,12 +178,13 @@ export class GameService {
   public getReplay(roomId: string): { snapshots: PersistedSnapshot[], actions: PersistedAction[] } {
     const room = this.roomManager.getRoom(roomId);
     if (!room) throw new Error('Room not found');
-    
+
     // In a fully persisted setup, this would load from a database.
     // Here we query the in-memory ReplayManager.
+    if (!room.replayManager) return { snapshots: [], actions: [] };
     const snapshot = room.replayManager.getSnapshotBefore(Number.MAX_SAFE_INTEGER);
     const actions = snapshot ? room.replayManager.getActionsAfter(snapshot.actionIndex) : [];
-    
+
     return {
       snapshots: snapshot ? [snapshot] : [],
       actions

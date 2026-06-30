@@ -1,10 +1,10 @@
 {
   "name": "@monopoly/engine",
   "version": "1.0.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --build",
     "test": "vitest run",
     "lint": "eslint ."
   },
@@ -16,5 +16,15 @@
     "typescript": "^5.5.4",
     "vitest": "^2.0.5",
     "eslint": "^9.11.0"
-  }
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }

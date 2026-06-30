@@ -1,4 +1,3 @@
-"use strict";
 // =============================================================================
 // Action.ts
 // All client-to-server action types.
@@ -8,8 +7,6 @@
 // - playerId is NEVER trusted from the client payload — it is derived from JWT.
 // - ClientAction is a discriminated union keyed on `type`.
 // =============================================================================
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ActionType = void 0;
 // ---------------------------------------------------------------------------
 // ActionType Enum
 // ---------------------------------------------------------------------------
@@ -18,7 +15,7 @@ exports.ActionType = void 0;
  * Actions are the ONLY way clients influence game state.
  * The server validates, applies, and broadcasts; clients only send actions.
  */
-var ActionType;
+export var ActionType;
 (function (ActionType) {
     // Lobby
     /** Player signals readiness in the lobby. */
@@ -80,5 +77,5 @@ var ActionType;
     // Meta
     /** Client requests a full state resync (e.g., after detected desync). */
     ActionType["REQUEST_FULL_STATE"] = "REQUEST_FULL_STATE";
-})(ActionType || (exports.ActionType = ActionType = {}));
+})(ActionType || (ActionType = {}));
 //# sourceMappingURL=Action.js.map

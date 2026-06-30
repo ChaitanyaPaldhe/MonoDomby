@@ -12,7 +12,7 @@ export class GameClient {
       return;
     }
 
-    socket.emit('game_action', { roomId, action }, (res) => {
+    socket.emit('game_action', { roomId, action }, (res: any) => {
       if (!res.success && res.error) {
         useUiStore.getState().showError(`Action Failed: ${res.error.message}`);
       }

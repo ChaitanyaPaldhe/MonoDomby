@@ -24,7 +24,7 @@ export const Board: React.FC = () => {
            <p className="text-sm text-gray-600">The server handles all rules. Client visualizes the board dynamically based on the MapConfig.</p>
            
            <div className="mt-6 flex flex-wrap gap-2">
-             {gameState.players.map(p => (
+             {Object.values(gameState.players).map(p => (
                <div key={p.id} className="flex flex-col items-center p-3 bg-white rounded-md shadow border border-gray-200">
                  <div className="h-6 w-6 rounded-full bg-monopoly-blue mb-2 shadow-inner" />
                  <span className="text-xs font-bold text-gray-800">{p.id}</span>

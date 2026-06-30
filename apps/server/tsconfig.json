@@ -4,20 +4,21 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "tsBuildInfoFile": "./tsconfig.tsbuildinfo",
-    "paths": {
-      "@monopoly/shared": ["../../packages/shared/src/index.ts"],
-      "@monopoly/shared/*": ["../../packages/shared/src/*"],
-      "@monopoly/engine": ["../../packages/engine/src/index.ts"],
-      "@monopoly/engine/*": ["../../packages/engine/src/*"],
-      "@monopoly/maps": ["../../packages/maps/src/index.ts"],
-      "@monopoly/maps/*": ["../../packages/maps/src/*"]
-    }
+    "composite": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ],
   "references": [
-    { "path": "../../packages/shared" },
-    { "path": "../../packages/engine" },
-    { "path": "../../packages/maps" }
+    {
+      "path": "../../packages/engine"
+    },
+    {
+      "path": "../../packages/shared"
+    }
   ]
 }

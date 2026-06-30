@@ -1,21 +1,20 @@
 import { GameEngine } from '@monopoly/engine';
 import { GameState, PlayerId, ClientAction } from '@monopoly/shared';
 import { MapConfig } from '@monopoly/maps';
-import { RoomState, RoomConfig, PlayerSession } from './interfaces.js';
+import { RoomState, RoomConfig, PlayerSession, PersistActionFn, PersistSnapshotFn, BroadcastFn } from './interfaces.js';
 import { ActionQueue } from './ActionQueue.js';
 import { SnapshotManager } from './SnapshotManager.js';
 import { ReplayManager } from './ReplayManager.js';
 import { TimerManager } from './TimerManager.js';
-import { SystemActionFactory } from './SystemActionFactory.js';
 
 export class Room {
   public state: RoomState = RoomState.WAITING;
   public players: Map<PlayerId, PlayerSession> = new Map();
   public spectators: Map<PlayerId, PlayerSession> = new Map();
   
-  public readonly actionQueue: ActionQueue;
-  public readonly snapshotManager: SnapshotManager;
-  public readonly replayManager: ReplayManager;
+  public actionQueue: ActionQueue | null = null;
+  public snapshotManager: SnapshotManager | null = null;
+  public replayManager: ReplayManager | null = null;
   public readonly timerManager: TimerManager;
 
   public readonly createdAt: number = Date.now();
@@ -25,17 +24,21 @@ export class Room {
     public readonly roomId: string,
     public readonly config: RoomConfig,
     public readonly mapConfig: MapConfig,
-    public readonly engine: GameEngine,
-    public readonly gameState: GameState,
-    persistAction: any,
-    persistSnapshot: any,
-    broadcast: any
+    public readonly engine: GameEngine
   ) {
     this.timerManager = new TimerManager();
-    this.replayManager = new ReplayManager(roomId);
+  }
+
+  public initializeGame(
+    gameState: GameState,
+    persistAction: PersistActionFn,
+    persistSnapshot: PersistSnapshotFn,
+    broadcast: BroadcastFn
+  ): void {
+    this.replayManager = new ReplayManager(this.roomId);
     
     this.snapshotManager = new SnapshotManager(
-      config.snapshotInterval,
+      this.config.snapshotInterval,
       this.replayManager,
       persistSnapshot
     );
@@ -43,7 +46,7 @@ export class Room {
     this.actionQueue = new ActionQueue(
       gameState,
       this.mapConfig,
-      engine,
+      this.engine,
       this.snapshotManager,
       this.replayManager,
       persistAction,
@@ -54,13 +57,13 @@ export class Room {
     );
   }
 
-  public getGameState(): GameState {
-    return this.actionQueue.getState();
+  public getGameState(): GameState | undefined {
+    return this.actionQueue?.getState();
   }
 
   public enqueueAction(action: ClientAction): void {
-    if (this.state !== RoomState.RUNNING) {
-      throw new Error('Room is not in RUNNING state.');
+    if (this.state !== RoomState.RUNNING || !this.actionQueue) {
+      throw new Error('Room is not in RUNNING state or ActionQueue is not initialized.');
     }
     this.actionQueue.enqueue(action);
   }

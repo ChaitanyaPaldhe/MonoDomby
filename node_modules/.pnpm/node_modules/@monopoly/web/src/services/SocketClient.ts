@@ -5,7 +5,7 @@ import { GameState, GameEvent, ClientAction } from '@monopoly/shared';
 // For typing the socket client
 interface ServerToClientEvents {
   room_created: (payload: { roomId: string }) => void;
-  room_joined: (payload: { roomId: string; state: GameState }) => void;
+  room_joined: (payload: { roomId: string; state: GameState; players: string[]; roomState: string }) => void;
   room_updated: (payload: { roomId: string }) => void;
   player_joined: (payload: { roomId: string; playerId: string }) => void;
   player_left: (payload: { roomId: string; playerId: string }) => void;
@@ -24,6 +24,7 @@ interface ClientToServerEvents {
   leave_room: (payload: { roomId: string }, callback?: (res: any) => void) => void;
   reconnect: (payload: { roomId: string }, callback?: (res: any) => void) => void;
   spectate_room: (payload: { roomId: string }, callback?: (res: any) => void) => void;
+  start_game: (payload: { roomId: string }, callback?: (res: any) => void) => void;
   game_action: (payload: { roomId: string; action: ClientAction }, callback?: (res: any) => void) => void;
   heartbeat: () => void;
   chat_message: (payload: { roomId: string; message: string }, callback?: (res: any) => void) => void;
@@ -52,6 +53,7 @@ class SocketClient {
     connStore.setStatus('connecting');
 
     this.socket.on('connect', () => {
+      console.log(`[CLIENT: SocketClient] Socket connected. ID: ${this.socket?.id}`);
       connStore.setStatus('connected');
     });
 
@@ -60,12 +62,24 @@ class SocketClient {
     });
 
     // Room Events
+    this.socket.on('room_created', (payload) => {
+      console.log(`[CLIENT: SocketClient] room_created received:`, payload);
+    });
+
     this.socket.on('room_joined', (payload) => {
+      console.log(`[CLIENT: SocketClient] room_joined received. Payload:`, payload);
       roomStore.setRoom(payload.roomId);
-      gameStore.setGameState(payload.state);
+      roomStore.setPlayers(payload.players);
+      roomStore.setStatus(payload.roomState);
+      if (payload.state) {
+        gameStore.setGameState(payload.state);
+      } else {
+        gameStore.clearGame();
+      }
     });
 
     this.socket.on('player_joined', (payload) => {
+      console.log(`[CLIENT: SocketClient] player_joined received:`, payload);
       roomStore.addPlayer(payload.playerId);
     });
 
@@ -75,12 +89,15 @@ class SocketClient {
 
     // Game Events
     this.socket.on('game_state', (payload) => {
+      console.log(`[CLIENT: SocketClient] game_state received for room: ${payload.roomId}`);
       gameStore.setGameState(payload.state);
+      roomStore.setStatus('RUNNING');
     });
 
     // We expect the server to send the action, resulting events, and ideally the resulting state
     // so we can blindly update state without applying rules.
     this.socket.on('action_applied', (payload) => {
+      console.log(`[CLIENT: SocketClient] action_applied received for room: ${payload.roomId}, action: ${payload.action.type}`);
       gameStore.appendActionEvents(payload.action, payload.events);
       // As per prompt: we update local state using events + checksum. If there's a discrepancy, 
       // we'd request a full state. But for simplicity if the payload contains the full state we can just apply it.

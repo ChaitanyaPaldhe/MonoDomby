@@ -46,7 +46,7 @@ export const Game: React.FC = () => {
           <div className="text-3xl font-mono text-monopoly-red text-center mb-8">
             00:30
           </div>
-          
+
           <ActionButtons />
         </div>
       </div>

@@ -10,7 +10,7 @@ export const PlayerPanel: React.FC = () => {
   return (
     <div className="flex flex-col flex-none space-y-2 h-1/2 overflow-y-auto">
       <h2 className="text-xl font-bold text-white border-b border-gray-700 pb-2 sticky top-0 bg-gray-800">Players</h2>
-      {gameState.players.map((p) => {
+      {Object.values(gameState.players).map((p) => {
         const isMe = p.id === myId;
         const isTurn = gameState.turn.currentPlayerId === p.id;
         

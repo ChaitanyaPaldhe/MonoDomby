@@ -22,21 +22,49 @@ export class SocketGateway {
 
     // Room Management
     socket.on('create_room', (payload, callback) => {
+      console.log(`[SERVER: SocketGateway] create_room received. SocketId: ${socket.id}, PlayerId: ${playerId}, RoomId: ${payload.roomId}`);
       this.safeExecute(callback, () => {
-        // Assume default initial state generation happens here or in service.
-        // As a stub, we just pass null. The GameService expects GameState.
-        const mockInitialState = {} as GameState;
-        this.gameService.createRoom(payload.roomId, mockInitialState);
+        this.gameService.createRoom(payload.roomId, playerId, socket.id);
         socket.join(payload.roomId);
         this.io.to(payload.roomId).emit('room_created', { roomId: payload.roomId });
+        
+        const lobbyState = this.gameService.getLobbyState(payload.roomId);
+        if (lobbyState) {
+          const emitPayload: any = { 
+            roomId: payload.roomId, 
+            players: lobbyState.players,
+            roomState: lobbyState.roomState
+          };
+          if (lobbyState.state) {
+            emitPayload.state = lobbyState.state;
+          }
+          console.log(`[SERVER: SocketGateway] Broadcasting room_joined immediately before. Players:`, Array.from(lobbyState.players));
+          socket.emit('room_joined', emitPayload);
+        }
       });
     });
 
     socket.on('join_room', (payload, callback) => {
+      console.log(`[SERVER: SocketGateway] join_room received. SocketId: ${socket.id}, PlayerId: ${playerId}, RoomId: ${payload.roomId}`);
       this.safeExecute(callback, () => {
         this.gameService.joinRoom(payload.roomId, playerId, socket.id);
         socket.join(payload.roomId);
+        
         this.io.to(payload.roomId).emit('player_joined', { roomId: payload.roomId, playerId });
+        
+        const lobbyState = this.gameService.getLobbyState(payload.roomId);
+        if (lobbyState) {
+          const emitPayload: any = { 
+            roomId: payload.roomId, 
+            players: lobbyState.players,
+            roomState: lobbyState.roomState
+          };
+          if (lobbyState.state) {
+            emitPayload.state = lobbyState.state;
+          }
+          console.log(`[SERVER: SocketGateway] Broadcasting room_joined immediately before. Players:`, Array.from(lobbyState.players));
+          socket.emit('room_joined', emitPayload);
+        }
       });
     });
 
@@ -61,6 +89,19 @@ export class SocketGateway {
         this.gameService.reconnect(payload.roomId, playerId, socket.id);
         socket.join(payload.roomId);
         // The client would typically request game state sync next
+      });
+    });
+
+    socket.on('start_game', (payload, callback) => {
+      console.log(`[SERVER: SocketGateway] start_game received. SocketId: ${socket.id}, PlayerId: ${playerId}, RoomId: ${payload.roomId}`);
+      this.safeExecute(callback, () => {
+        this.gameService.startGame(payload.roomId);
+        const state = this.gameService.getGameState(payload.roomId);
+        if (state) {
+          const room = this.gameService.getLobbyState(payload.roomId);
+          console.log(`[SERVER: SocketGateway] Broadcasting game_state immediately before. Players:`, room ? Array.from(room.players) : []);
+          this.io.to(payload.roomId).emit('game_state', { roomId: payload.roomId, state });
+        }
       });
     });
 

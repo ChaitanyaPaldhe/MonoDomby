@@ -11,17 +11,20 @@ export const Home: React.FC = () => {
   const { status } = useConnectionStore();
 
   const handleConnect = () => {
+    console.log(`[CLIENT: Home] Connect clicked for playerId: ${playerId}`);
     socketClient.connect(playerId);
   };
 
   const handleCreateRoom = () => {
     const newRoomId = uuidv4();
+    console.log(`[CLIENT: Home] Create Room clicked, generating roomId: ${newRoomId}`);
     LobbyClient.createRoom(newRoomId);
     navigate(`/room/${newRoomId}`);
   };
 
   const handleJoinRoom = () => {
     if (roomId) {
+      console.log(`[CLIENT: Home] Join Room clicked for roomId: ${roomId}`);
       LobbyClient.joinRoom(roomId);
       navigate(`/room/${roomId}`);
     }
@@ -48,7 +51,7 @@ export const Home: React.FC = () => {
                 id="playerId"
                 type="text"
                 value={playerId}
-                onChange={(e) => setPlayerId(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPlayerId(e.target.value)}
                 className="block w-full rounded-md border-gray-700 bg-gray-900 px-4 py-3 text-white focus:border-monopoly-blue focus:ring-monopoly-blue sm:text-sm"
               />
               <button
@@ -92,7 +95,7 @@ export const Home: React.FC = () => {
                 type="text"
                 placeholder="Room UUID"
                 value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRoomId(e.target.value)}
                 className="block w-full rounded-md border-gray-700 bg-gray-900 px-4 py-3 text-white focus:border-monopoly-blue focus:ring-monopoly-blue sm:text-sm"
               />
               <button

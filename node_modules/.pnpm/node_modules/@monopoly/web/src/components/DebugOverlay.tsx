@@ -38,7 +38,7 @@ export const DebugOverlay: React.FC = () => {
             <div className="flex justify-between"><span>Checksum:</span> <span className="text-white truncate max-w-[100px]" data-testid="checksum">{state.checksum}</span></div>
             <div className="flex justify-between"><span>Phase:</span> <span className="text-white" data-testid="phase">{state.turn.phase}</span></div>
             <div className="flex justify-between"><span>Turn:</span> <span className="text-white truncate max-w-[120px]" data-testid="current-player">{state.turn.currentPlayerId}</span></div>
-            <div className="flex justify-between"><span>Pending Decision:</span> <span className="text-white" data-testid="pending-decision">{state.pendingDecision ? 'YES' : 'NO'}</span></div>
+            <div className="flex justify-between"><span>Pending Decision:</span> <span className="text-white" data-testid="pending-decision">{state.turn.pendingDecision ? 'YES' : 'NO'}</span></div>
             <div className="flex justify-between"><span>Replay Cursor:</span> <span className="text-white">{gameStore.eventLog.length}</span></div>
           </>
         ) : (

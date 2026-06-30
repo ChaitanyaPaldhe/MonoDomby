@@ -270,27 +270,27 @@ export interface TradeState {
  */
 export type PendingDecision =
   | {
-      readonly type: DecisionType.PURCHASE;
-      /** Tile the player may purchase or decline. */
-      readonly tileId: TileId;
-    }
+    readonly type: DecisionType.PURCHASE;
+    /** Tile the player may purchase or decline. */
+    readonly tileId: TileId;
+  }
   | {
-      readonly type: DecisionType.JAIL;
-      /** Options available to the player to exit jail. */
-      readonly availableOptions: ReadonlyArray<'PAY_FINE' | 'USE_CARD' | 'ROLL'>;
-    }
+    readonly type: DecisionType.JAIL;
+    /** Options available to the player to exit jail. */
+    readonly availableOptions: ReadonlyArray<'PAY_FINE' | 'USE_CARD' | 'ROLL'>;
+  }
   | {
-      readonly type: DecisionType.DEBT_RECOVERY;
-      /** The player or bank that is owed money. Null = owed to bank. */
-      readonly creditorId: PlayerId | null;
-      /** Total amount that must be raised. */
-      readonly amountOwed: number;
-    }
+    readonly type: DecisionType.DEBT_RECOVERY;
+    /** The player or bank that is owed money. Null = owed to bank. */
+    readonly creditorId: PlayerId | null;
+    /** Total amount that must be raised. */
+    readonly amountOwed: number;
+  }
   | {
-      readonly type: DecisionType.CARD_EFFECT;
-      readonly cardId: string;
-      readonly deckType: CardDeckType;
-    };
+    readonly type: DecisionType.CARD_EFFECT;
+    readonly cardId: string;
+    readonly deckType: CardDeckType;
+  };
 
 // ---------------------------------------------------------------------------
 // Pending Card

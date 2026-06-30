@@ -1,4 +1,3 @@
-"use strict";
 // =============================================================================
 // Event.ts
 // All server-to-client event types.
@@ -9,12 +8,10 @@
 // - Each event carries an `audience` that controls who receives it.
 // - GameEvent is a discriminated union keyed on `type`.
 // =============================================================================
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.EventType = void 0;
 // ---------------------------------------------------------------------------
 // EventType Enum
 // ---------------------------------------------------------------------------
-var EventType;
+export var EventType;
 (function (EventType) {
     // Board movement
     EventType["PLAYER_MOVED"] = "PLAYER_MOVED";
@@ -88,5 +85,5 @@ var EventType;
     EventType["PLAYER_RECONNECTED"] = "PLAYER_RECONNECTED";
     // Room
     EventType["HOST_MIGRATED"] = "HOST_MIGRATED";
-})(EventType || (exports.EventType = EventType = {}));
+})(EventType || (EventType = {}));
 //# sourceMappingURL=Event.js.map

@@ -1,4 +1,3 @@
-"use strict";
 // =============================================================================
 // SocketEvents.ts
 // Typed Socket.IO event maps for both client-to-server and server-to-client.
@@ -8,5 +7,5 @@
 // Client → Server events: CLIENT:*
 // Server → Client events: ROOM:* | GAME:* | AUCTION:* | TRADE:*
 // =============================================================================
-Object.defineProperty(exports, "__esModule", { value: true });
+export {};
 //# sourceMappingURL=SocketEvents.js.map

@@ -10,6 +10,7 @@ export interface ClientToServerEvents {
   leave_room: (payload: { roomId: string }, callback?: (response: SocketResponse) => void) => void;
   reconnect: (payload: { roomId: string }, callback?: (response: SocketResponse) => void) => void;
   spectate_room: (payload: { roomId: string }, callback?: (response: SocketResponse) => void) => void;
+  start_game: (payload: { roomId: string }, callback?: (response: SocketResponse) => void) => void;
   game_action: (payload: { roomId: string; action: ClientAction }, callback?: (response: SocketResponse) => void) => void;
   heartbeat: () => void;
   chat_message: (payload: { roomId: string; message: string }, callback?: (response: SocketResponse) => void) => void;
@@ -21,7 +22,7 @@ export interface ClientToServerEvents {
 
 export interface ServerToClientEvents {
   room_created: (payload: { roomId: string }) => void;
-  room_joined: (payload: { roomId: string; state: GameState }) => void;
+  room_joined: (payload: { roomId: string; state?: GameState; players: string[]; roomState: string }) => void;
   room_updated: (payload: { roomId: string }) => void;
   player_joined: (payload: { roomId: string; playerId: PlayerId }) => void;
   player_left: (payload: { roomId: string; playerId: PlayerId }) => void;

@@ -6,7 +6,7 @@ export class LobbyClient {
     const socket = socketClient.getSocket();
     if (!socket) return;
     
-    socket.emit('create_room', { roomId }, (res) => {
+    socket.emit('create_room', { roomId }, (res: any) => {
       if (!res.success && res.error) {
         useUiStore.getState().showError(`Failed to create room: ${res.error.message}`);
       }
@@ -17,7 +17,7 @@ export class LobbyClient {
     const socket = socketClient.getSocket();
     if (!socket) return;
     
-    socket.emit('join_room', { roomId }, (res) => {
+    socket.emit('join_room', { roomId }, (res: any) => {
       if (!res.success && res.error) {
         useUiStore.getState().showError(`Failed to join room: ${res.error.message}`);
       }
@@ -29,5 +29,16 @@ export class LobbyClient {
     if (!socket) return;
 
     socket.emit('leave_room', { roomId });
+  }
+
+  public static startGame(roomId: string) {
+    const socket = socketClient.getSocket();
+    if (!socket) return;
+    
+    socket.emit('start_game', { roomId }, (res: any) => {
+      if (!res.success && res.error) {
+        useUiStore.getState().showError(`Failed to start game: ${res.error.message}`);
+      }
+    });
   }
 }

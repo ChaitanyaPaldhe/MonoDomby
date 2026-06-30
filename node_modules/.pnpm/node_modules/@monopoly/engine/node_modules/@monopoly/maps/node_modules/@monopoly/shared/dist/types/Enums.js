@@ -1,15 +1,12 @@
-"use strict";
 // =============================================================================
 // Enums.ts
 // All engine-wide enumerations. No external dependencies.
 // =============================================================================
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.DecisionType = exports.RoomStatus = exports.SnapshotReason = exports.ErrorCode = exports.JailReason = exports.JailReleaseMethod = exports.NearestTileType = exports.TaxDestination = exports.DisconnectedPlayerPolicy = exports.WinCondition = exports.CardDeckType = exports.CardEffectType = exports.TileType = exports.TradeStatus = exports.AuctionStatus = exports.TurnPhase = exports.GamePhase = void 0;
 // ---------------------------------------------------------------------------
 // Game Lifecycle
 // ---------------------------------------------------------------------------
 /** Top-level phase of a game room. Drives the room-level state machine. */
-var GamePhase;
+export var GamePhase;
 (function (GamePhase) {
     /** Players are joining and configuring settings. No game in progress. */
     GamePhase["LOBBY"] = "LOBBY";
@@ -21,9 +18,9 @@ var GamePhase;
     GamePhase["AUCTION"] = "AUCTION";
     /** Victory condition met. Game is over. Read-only final state. */
     GamePhase["ENDED"] = "ENDED";
-})(GamePhase || (exports.GamePhase = GamePhase = {}));
+})(GamePhase || (GamePhase = {}));
 /** Phase within a single player's turn. Drives the turn-level state machine. */
-var TurnPhase;
+export var TurnPhase;
 (function (TurnPhase) {
     /** Turn has begun. Player must roll dice (or manage jail if applicable). */
     TurnPhase["PRE_ROLL"] = "PRE_ROLL";
@@ -40,12 +37,12 @@ var TurnPhase;
      * propose trades, or end turn.
      */
     TurnPhase["POST_ROLL"] = "POST_ROLL";
-})(TurnPhase || (exports.TurnPhase = TurnPhase = {}));
+})(TurnPhase || (TurnPhase = {}));
 // ---------------------------------------------------------------------------
 // Auction
 // ---------------------------------------------------------------------------
 /** Lifecycle status of an active auction. */
-var AuctionStatus;
+export var AuctionStatus;
 (function (AuctionStatus) {
     /** Auction is running; bids are being accepted. */
     AuctionStatus["ACTIVE"] = "ACTIVE";
@@ -56,12 +53,12 @@ var AuctionStatus;
     AuctionStatus["ENDING"] = "ENDING";
     /** Auction is over. Winner (or no winner) has been determined. */
     AuctionStatus["COMPLETE"] = "COMPLETE";
-})(AuctionStatus || (exports.AuctionStatus = AuctionStatus = {}));
+})(AuctionStatus || (AuctionStatus = {}));
 // ---------------------------------------------------------------------------
 // Trade
 // ---------------------------------------------------------------------------
 /** Lifecycle status of a trade offer between two players. */
-var TradeStatus;
+export var TradeStatus;
 (function (TradeStatus) {
     /** Initial offer has been sent; awaiting target's response. */
     TradeStatus["PENDING"] = "PENDING";
@@ -73,12 +70,12 @@ var TradeStatus;
     TradeStatus["REJECTED"] = "REJECTED";
     /** Initiator withdrew the offer. */
     TradeStatus["CANCELLED"] = "CANCELLED";
-})(TradeStatus || (exports.TradeStatus = TradeStatus = {}));
+})(TradeStatus || (TradeStatus = {}));
 // ---------------------------------------------------------------------------
 // Map / Board Content
 // ---------------------------------------------------------------------------
 /** The functional type of a board tile. Determines engine behavior when landed on. */
-var TileType;
+export var TileType;
 (function (TileType) {
     /** The GO tile. Passing or landing awards goReward. */
     TileType["GO"] = "GO";
@@ -102,9 +99,9 @@ var TileType;
     TileType["FREE_PARKING"] = "FREE_PARKING";
     /** Extension point: custom tile type driven by customData and a named handler. */
     TileType["CUSTOM"] = "CUSTOM";
-})(TileType || (exports.TileType = TileType = {}));
+})(TileType || (TileType = {}));
 /** Effect type of a Chance or Community Chest card. */
-var CardEffectType;
+export var CardEffectType;
 (function (CardEffectType) {
     /** Player receives money from the bank. */
     CardEffectType["COLLECT_FROM_BANK"] = "COLLECT_FROM_BANK";
@@ -130,18 +127,18 @@ var CardEffectType;
     CardEffectType["REPAIRS"] = "REPAIRS";
     /** Invoke a named custom card handler registered in the CardHandlerRegistry. */
     CardEffectType["CUSTOM"] = "CUSTOM";
-})(CardEffectType || (exports.CardEffectType = CardEffectType = {}));
+})(CardEffectType || (CardEffectType = {}));
 /** Identifies which physical card deck a card belongs to. */
-var CardDeckType;
+export var CardDeckType;
 (function (CardDeckType) {
     CardDeckType["CHANCE"] = "CHANCE";
     CardDeckType["COMMUNITY_CHEST"] = "COMMUNITY_CHEST";
-})(CardDeckType || (exports.CardDeckType = CardDeckType = {}));
+})(CardDeckType || (CardDeckType = {}));
 // ---------------------------------------------------------------------------
 // Rules / Settings
 // ---------------------------------------------------------------------------
 /** Win condition variant for the game. Read from MapConfig.rules. */
-var WinCondition;
+export var WinCondition;
 (function (WinCondition) {
     /** Last non-bankrupt player wins. Standard Monopoly. */
     WinCondition["LAST_STANDING"] = "LAST_STANDING";
@@ -149,9 +146,9 @@ var WinCondition;
     WinCondition["NET_WORTH_TARGET"] = "NET_WORTH_TARGET";
     /** Game ends after a configured number of turns; richest player wins. */
     WinCondition["TURN_LIMIT"] = "TURN_LIMIT";
-})(WinCondition || (exports.WinCondition = WinCondition = {}));
+})(WinCondition || (WinCondition = {}));
 /** Behaviour for a disconnected player when it is their turn. */
-var DisconnectedPlayerPolicy;
+export var DisconnectedPlayerPolicy;
 (function (DisconnectedPlayerPolicy) {
     /** Auto-roll dice and skip turn. */
     DisconnectedPlayerPolicy["SKIP"] = "SKIP";
@@ -159,45 +156,45 @@ var DisconnectedPlayerPolicy;
     DisconnectedPlayerPolicy["WAIT"] = "WAIT";
     /** Server plays the turn automatically (simple heuristic). */
     DisconnectedPlayerPolicy["AUTO_PLAY"] = "AUTO_PLAY";
-})(DisconnectedPlayerPolicy || (exports.DisconnectedPlayerPolicy = DisconnectedPlayerPolicy = {}));
+})(DisconnectedPlayerPolicy || (DisconnectedPlayerPolicy = {}));
 /** Where tax payments are sent. */
-var TaxDestination;
+export var TaxDestination;
 (function (TaxDestination) {
     /** Standard: money returns to the bank. */
     TaxDestination["BANK"] = "BANK";
     /** House rule: money accumulates on the Free Parking tile. */
     TaxDestination["FREE_PARKING"] = "FREE_PARKING";
-})(TaxDestination || (exports.TaxDestination = TaxDestination = {}));
+})(TaxDestination || (TaxDestination = {}));
 /** The type of tile searched by a MOVE_TO_NEAREST card effect. */
-var NearestTileType;
+export var NearestTileType;
 (function (NearestTileType) {
     NearestTileType["RAILROAD"] = "RAILROAD";
     NearestTileType["UTILITY"] = "UTILITY";
-})(NearestTileType || (exports.NearestTileType = NearestTileType = {}));
+})(NearestTileType || (NearestTileType = {}));
 // ---------------------------------------------------------------------------
 // Jail
 // ---------------------------------------------------------------------------
 /** How a player was released from jail. Used in PLAYER_RELEASED_JAIL event. */
-var JailReleaseMethod;
+export var JailReleaseMethod;
 (function (JailReleaseMethod) {
     JailReleaseMethod["PAID_FINE"] = "PAID_FINE";
     JailReleaseMethod["USED_CARD"] = "USED_CARD";
     JailReleaseMethod["ROLLED_DOUBLES"] = "ROLLED_DOUBLES";
     /** Player served their maximum allowed turns (maxTurnsInJail) and pays fine. */
     JailReleaseMethod["SERVED_TIME"] = "SERVED_TIME";
-})(JailReleaseMethod || (exports.JailReleaseMethod = JailReleaseMethod = {}));
+})(JailReleaseMethod || (JailReleaseMethod = {}));
 /** How a player was sent to jail. Used in PLAYER_JAILED event. */
-var JailReason;
+export var JailReason;
 (function (JailReason) {
     JailReason["GO_TO_JAIL_TILE"] = "GO_TO_JAIL_TILE";
     JailReason["THREE_DOUBLES"] = "THREE_DOUBLES";
     JailReason["CARD"] = "CARD";
-})(JailReason || (exports.JailReason = JailReason = {}));
+})(JailReason || (JailReason = {}));
 // ---------------------------------------------------------------------------
 // Error Codes (matches Appendix B of architecture spec)
 // ---------------------------------------------------------------------------
 /** Typed error codes returned on validation failures. Mapped to HTTP-style semantics. */
-var ErrorCode;
+export var ErrorCode;
 (function (ErrorCode) {
     ErrorCode["E_NOT_YOUR_TURN"] = "E_NOT_YOUR_TURN";
     ErrorCode["E_INVALID_PHASE"] = "E_INVALID_PHASE";
@@ -223,32 +220,32 @@ var ErrorCode;
     ErrorCode["E_PENDING_DECISION"] = "E_PENDING_DECISION";
     ErrorCode["E_INVALID_ACTION"] = "E_INVALID_ACTION";
     ErrorCode["E_UNKNOWN"] = "E_UNKNOWN";
-})(ErrorCode || (exports.ErrorCode = ErrorCode = {}));
+})(ErrorCode || (ErrorCode = {}));
 // ---------------------------------------------------------------------------
 // Persistence
 // ---------------------------------------------------------------------------
 /** Reason a game snapshot was taken. Stored in game_snapshots table. */
-var SnapshotReason;
+export var SnapshotReason;
 (function (SnapshotReason) {
     SnapshotReason["PERIODIC"] = "PERIODIC";
     SnapshotReason["PRE_AUCTION"] = "PRE_AUCTION";
     SnapshotReason["TRADE"] = "TRADE";
     SnapshotReason["MANUAL"] = "MANUAL";
     SnapshotReason["GAME_END"] = "GAME_END";
-})(SnapshotReason || (exports.SnapshotReason = SnapshotReason = {}));
+})(SnapshotReason || (SnapshotReason = {}));
 /** Status of a Room record. Mirrors GamePhase but is persisted in the DB. */
-var RoomStatus;
+export var RoomStatus;
 (function (RoomStatus) {
     RoomStatus["LOBBY"] = "LOBBY";
     RoomStatus["IN_PROGRESS"] = "IN_PROGRESS";
     RoomStatus["ENDED"] = "ENDED";
-})(RoomStatus || (exports.RoomStatus = RoomStatus = {}));
+})(RoomStatus || (RoomStatus = {}));
 /** Pending decision type stored in TurnState.pendingDecision. */
-var DecisionType;
+export var DecisionType;
 (function (DecisionType) {
     DecisionType["PURCHASE"] = "PURCHASE";
     DecisionType["JAIL"] = "JAIL";
     DecisionType["DEBT_RECOVERY"] = "DEBT_RECOVERY";
     DecisionType["CARD_EFFECT"] = "CARD_EFFECT";
-})(DecisionType || (exports.DecisionType = DecisionType = {}));
+})(DecisionType || (DecisionType = {}));
 //# sourceMappingURL=Enums.js.map
