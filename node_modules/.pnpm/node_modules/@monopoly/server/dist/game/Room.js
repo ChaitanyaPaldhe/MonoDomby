@@ -27,9 +27,9 @@ export class Room {
     initializeGame(gameState, persistAction, persistSnapshot, broadcast) {
         this.replayManager = new ReplayManager(this.roomId);
         this.snapshotManager = new SnapshotManager(this.config.snapshotInterval, this.replayManager, persistSnapshot);
-        this.actionQueue = new ActionQueue(gameState, this.mapConfig, this.engine, this.snapshotManager, this.replayManager, persistAction, (events) => {
+        this.actionQueue = new ActionQueue(gameState, this.mapConfig, this.engine, this.snapshotManager, this.replayManager, persistAction, (action, events, state) => {
             this.updatedAt = Date.now();
-            broadcast(events);
+            broadcast(action, events, state);
         });
     }
     getGameState() {

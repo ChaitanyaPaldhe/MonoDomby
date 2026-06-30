@@ -603,10 +603,11 @@ export class ActionProcessor {
         const base = this.baseGameplayValidation(state, actingPlayerId);
         if (!base.valid)
             return base;
-        if (state.turn.pendingDecision?.type !== DecisionType.PURCHASE) {
+        const decision = state.turn.pendingDecision;
+        if (decision?.type !== DecisionType.PURCHASE) {
             return fail(ErrorCode.E_INVALID_ACTION, 'No pending purchase decision.');
         }
-        const tileId = action.payload.tileId;
+        const tileId = decision.tileId;
         const tileConfig = config.board.tiles.find(t => t.id === tileId);
         if (!tileConfig || (tileConfig.type !== TileType.PROPERTY && tileConfig.type !== TileType.RAILROAD && tileConfig.type !== TileType.UTILITY)) {
             return fail(ErrorCode.E_INVALID_ACTION, 'Invalid property tile to decline.');
@@ -614,9 +615,12 @@ export class ActionProcessor {
         return ok();
     }
     handleDeclineProperty(state, action, config, actingPlayerId) {
-        const declineAction = action;
+        const decision = state.turn.pendingDecision;
+        if (!decision || decision.type !== DecisionType.PURCHASE) {
+            throw new EngineValidationError('No pending purchase decision.', ErrorCode.E_INVALID_ACTION);
+        }
         if (config.rules.auctionOnDecline) {
-            return this.auctionEngine.startAuction(state, declineAction.payload.tileId, config, action.clientTs);
+            return this.auctionEngine.startAuction(state, decision.tileId, config, action.clientTs);
         }
         else {
             // If auctions disabled, just clear decision

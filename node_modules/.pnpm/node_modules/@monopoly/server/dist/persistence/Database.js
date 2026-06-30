@@ -27,6 +27,20 @@ export class Database {
         this.replays = new ReplayRepository(this.pool);
     }
     /**
+     * Tests the database connection.
+     * Returns true if successful, false if connection fails.
+     */
+    async testConnection() {
+        try {
+            const client = await this.pool.connect();
+            client.release();
+            return true;
+        }
+        catch (err) {
+            return false;
+        }
+    }
+    /**
      * Executes a block of work inside a managed transaction.
      * Exposes repositories bound to the specific transaction client.
      */

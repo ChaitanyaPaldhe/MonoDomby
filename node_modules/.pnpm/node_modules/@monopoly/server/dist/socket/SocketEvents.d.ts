@@ -61,6 +61,7 @@ export interface ServerToClientEvents {
         roomId: string;
         action: ClientAction;
         events: readonly GameEvent[];
+        state?: GameState;
     }) => void;
     game_state: (payload: {
         roomId: string;

@@ -25,6 +25,24 @@ export const ActionButtons: React.FC = () => {
     GameClient.sendAction({ type: ActionType.END_TURN, playerId: myId, actionId: crypto.randomUUID() } as any);
   };
 
+  const handleBuy = () => {
+    GameClient.sendAction({
+      type: ActionType.BUY_PROPERTY,
+      playerId: myId,
+      actionId: crypto.randomUUID(),
+      tileId: (gameState.turn.pendingDecision as any)?.tileId
+    } as any);
+  };
+
+  const handleDecline = () => {
+    GameClient.sendAction({
+      type: ActionType.DECLINE_PROPERTY,
+      playerId: myId,
+      actionId: crypto.randomUUID(),
+      tileId: (gameState.turn.pendingDecision as any)?.tileId
+    } as any);
+  };
+
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Available Actions</h2>
@@ -47,6 +65,25 @@ export const ActionButtons: React.FC = () => {
         >
           🛑 End Turn
         </button>
+      )}
+
+      {phase === 'PURCHASE_DECISION' && (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={handleBuy}
+            data-testid="btn-buy-property"
+            className="w-full rounded-md bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700 shadow-lg transition-transform transform active:scale-95"
+          >
+            💰 Buy Property
+          </button>
+          <button
+            onClick={handleDecline}
+            data-testid="btn-decline-property"
+            className="w-full rounded-md bg-gray-600 px-4 py-3 text-sm font-bold text-white hover:bg-gray-700 shadow-lg transition-transform transform active:scale-95"
+          >
+            Decline
+          </button>
+        </div>
       )}
 
       {/* Property Management Buttons (Always visible on turn) */}

@@ -8,6 +8,11 @@ export declare class Database implements IUnitOfWork {
     readonly replays: IReplayRepository;
     constructor(connectionString: string);
     /**
+     * Tests the database connection.
+     * Returns true if successful, false if connection fails.
+     */
+    testConnection(): Promise<boolean>;
+    /**
      * Executes a block of work inside a managed transaction.
      * Exposes repositories bound to the specific transaction client.
      */

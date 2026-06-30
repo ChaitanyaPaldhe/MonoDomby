@@ -41,6 +41,20 @@ export class Database implements IUnitOfWork {
   }
 
   /**
+   * Tests the database connection.
+   * Returns true if successful, false if connection fails.
+   */
+  public async testConnection(): Promise<boolean> {
+    try {
+      const client = await this.pool.connect();
+      client.release();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /**
    * Executes a block of work inside a managed transaction.
    * Exposes repositories bound to the specific transaction client.
    */

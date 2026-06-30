@@ -6,6 +6,7 @@ import { GameEvent } from '@monopoly/shared';
 import { GameService } from './game/GameService.js';
 import { SocketServer } from './socket/SocketServer.js';
 import { Database } from './persistence/Database.js';
+import { WinCondition } from "@monopoly/shared";
 
 async function bootstrap() {
   const app = express();
@@ -14,13 +15,21 @@ async function bootstrap() {
   // 1. Initialize Postgres Database
   const dbConnectionString = process.env.DATABASE_URL || 'postgres://postgres:password@localhost:5432/monopoly';
   const db = new Database(dbConnectionString);
+  const isDbEnabled = await db.testConnection();
+
+  if (!isDbEnabled) {
+    console.warn(`[WARNING] PostgreSQL connection failed at ${dbConnectionString}`);
+    console.warn('[WARNING] Persistence is DISABLED for this session. Running in memory-only mode.');
+  } else {
+    console.log('[SERVER] PostgreSQL connected. Persistence is ENABLED.');
+  }
 
   // 2. Setup lazy io reference for broadcasting
   let socketServer: SocketServer | null = null;
   const broadcastFactory = (roomId: string) => {
-    return (events: readonly any[]) => {
+    return (action: any, events: readonly any[], state: any) => {
       if (socketServer) {
-        socketServer.getServer().to(roomId).emit('action_applied', { roomId, action: {} as any, events });
+        socketServer.getServer().to(roomId).emit('action_applied', { roomId, action, events, state });
       }
     };
   };
@@ -35,6 +44,7 @@ async function bootstrap() {
   };
 
   const persistAction = async (action: any, index: number, events: readonly GameEvent[]) => {
+    if (!isDbEnabled) return;
     try {
       const actionRecord = {
         id: crypto.randomUUID(),
@@ -42,7 +52,7 @@ async function bootstrap() {
         actionIndex: index,
         clientActionPayload: action
       };
-      
+
       const eventRecords = events.map((e, i) => ({
         id: crypto.randomUUID(),
         gameId: action.gameId || 'unknown-game',
@@ -50,7 +60,7 @@ async function bootstrap() {
         sequenceNumber: index * 1000 + i,
         eventPayload: e
       }));
-      
+
       await db.actions.saveActionWithEvents(actionRecord, eventRecords);
     } catch (err) {
       console.error('Failed to persist action:', err);
@@ -58,6 +68,7 @@ async function bootstrap() {
   };
 
   const persistSnapshot = async (state: any, index: number) => {
+    if (!isDbEnabled) return;
     try {
       await db.snapshots.save({
         id: crypto.randomUUID(),
@@ -110,7 +121,7 @@ async function bootstrap() {
       freeParkingMoney: false,
       mortgagedPropertyValuation: 0.5,
       bankruptcyToBank: false,
-      winCondition: 'LAST_PLAYER_STANDING' as any,
+      winCondition: WinCondition.LAST_STANDING,
       auctionConfig: { durationSeconds: 30, extensionSeconds: 10, extensionThreshold: 5, minBidIncrement: 10, maxExtensions: 10 }
     }
   };
@@ -146,7 +157,7 @@ async function bootstrap() {
     await db.close();
     process.exit(0);
   };
-  
+
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 }

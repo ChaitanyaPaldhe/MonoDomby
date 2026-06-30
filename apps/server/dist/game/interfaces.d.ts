@@ -40,7 +40,7 @@ export interface PersistedEvent {
     event: GameEvent;
     timestamp: number;
 }
-export type BroadcastFn = (events: readonly GameEvent[]) => void;
+export type BroadcastFn = (action: ClientAction, events: readonly GameEvent[], state: GameState) => void;
 export type PersistActionFn = (action: ClientAction, index: number, events: readonly GameEvent[]) => Promise<void>;
 export type PersistSnapshotFn = (state: GameState, index: number) => Promise<void>;
 //# sourceMappingURL=interfaces.d.ts.map

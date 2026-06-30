@@ -4,18 +4,27 @@ import { GameEngine } from '@monopoly/engine';
 import { GameService } from './game/GameService.js';
 import { SocketServer } from './socket/SocketServer.js';
 import { Database } from './persistence/Database.js';
+import { WinCondition } from "@monopoly/shared";
 async function bootstrap() {
     const app = express();
     const httpServer = createServer(app);
     // 1. Initialize Postgres Database
     const dbConnectionString = process.env.DATABASE_URL || 'postgres://postgres:password@localhost:5432/monopoly';
     const db = new Database(dbConnectionString);
+    const isDbEnabled = await db.testConnection();
+    if (!isDbEnabled) {
+        console.warn(`[WARNING] PostgreSQL connection failed at ${dbConnectionString}`);
+        console.warn('[WARNING] Persistence is DISABLED for this session. Running in memory-only mode.');
+    }
+    else {
+        console.log('[SERVER] PostgreSQL connected. Persistence is ENABLED.');
+    }
     // 2. Setup lazy io reference for broadcasting
     let socketServer = null;
     const broadcastFactory = (roomId) => {
-        return (events) => {
+        return (action, events, state) => {
             if (socketServer) {
-                socketServer.getServer().to(roomId).emit('action_applied', { roomId, action: {}, events });
+                socketServer.getServer().to(roomId).emit('action_applied', { roomId, action, events, state });
             }
         };
     };
@@ -28,6 +37,8 @@ async function bootstrap() {
         reconnectTimeoutMs: 120000
     };
     const persistAction = async (action, index, events) => {
+        if (!isDbEnabled)
+            return;
         try {
             const actionRecord = {
                 id: crypto.randomUUID(),
@@ -49,6 +60,8 @@ async function bootstrap() {
         }
     };
     const persistSnapshot = async (state, index) => {
+        if (!isDbEnabled)
+            return;
         try {
             await db.snapshots.save({
                 id: crypto.randomUUID(),
@@ -63,6 +76,21 @@ async function bootstrap() {
             console.error('Failed to persist snapshot:', err);
         }
     };
+    const dummyTiles = Array.from({ length: 40 }).map((_, i) => ({
+        id: `tile_${i}`,
+        index: i,
+        type: i === 10 ? 'JAIL' : i === 0 ? 'GO' : 'PROPERTY',
+        name: `Tile ${i}`,
+        propertyData: i !== 10 && i !== 0 ? {
+            groupId: 'dummy-group',
+            price: 100,
+            rents: { base: 10, colorGroup: 20, oneHouse: 30, twoHouses: 40, threeHouses: 50, fourHouses: 60, hotel: 70 },
+            houseCost: 50,
+            hotelCost: 50,
+            mortgageValue: 50,
+            unmortgageCost: 55
+        } : undefined
+    }));
     const dummyMapConfig = {
         schemaVersion: '1.0',
         meta: { id: 'classic', name: 'Classic Monopoly', playerTokens: [] },
@@ -70,8 +98,10 @@ async function bootstrap() {
         board: {
             size: 40,
             jailTileIndex: 10,
-            tiles: [],
-            propertyGroups: []
+            tiles: dummyTiles,
+            propertyGroups: [
+                { id: 'dummy-group', name: 'Dummy', color: '#000000', tileIds: dummyTiles.filter(t => t.type === 'PROPERTY').map(t => t.id) }
+            ]
         },
         cards: { chance: [], communityChest: [] },
         rules: {
@@ -83,7 +113,7 @@ async function bootstrap() {
             freeParkingMoney: false,
             mortgagedPropertyValuation: 0.5,
             bankruptcyToBank: false,
-            winCondition: 'LAST_PLAYER_STANDING',
+            winCondition: WinCondition.LAST_STANDING,
             auctionConfig: { durationSeconds: 30, extensionSeconds: 10, extensionThreshold: 5, minBidIncrement: 10, maxExtensions: 10 }
         }
     };

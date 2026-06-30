@@ -50,9 +50,9 @@ export class Room {
       this.snapshotManager,
       this.replayManager,
       persistAction,
-      (events) => {
+      (action, events, state) => {
         this.updatedAt = Date.now();
-        broadcast(events);
+        broadcast(action, events, state);
       }
     );
   }

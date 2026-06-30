@@ -28,7 +28,7 @@ export interface ServerToClientEvents {
   player_left: (payload: { roomId: string; playerId: PlayerId }) => void;
   spectator_joined: (payload: { roomId: string; playerId: PlayerId }) => void;
   spectator_left: (payload: { roomId: string; playerId: PlayerId }) => void;
-  action_applied: (payload: { roomId: string; action: ClientAction; events: readonly GameEvent[] }) => void;
+  action_applied: (payload: { roomId: string; action: ClientAction; events: readonly GameEvent[]; state?: GameState }) => void;
   game_state: (payload: { roomId: string; state: GameState }) => void;
   replay_chunk: (payload: { roomId: string; actions: any[] }) => void; // Using any[] here as a stub for future Replay integration
   timer_updated: (payload: { roomId: string; timerId: string; remainingMs: number }) => void;

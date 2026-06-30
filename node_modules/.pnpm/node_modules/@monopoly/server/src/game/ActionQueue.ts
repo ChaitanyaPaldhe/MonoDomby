@@ -68,7 +68,7 @@ export class ActionQueue {
 
         // 6. Broadcast
         if (events.length > 0) {
-          this.broadcast(events);
+          this.broadcast(action, events, this.state);
         }
       }
     } catch (error) {

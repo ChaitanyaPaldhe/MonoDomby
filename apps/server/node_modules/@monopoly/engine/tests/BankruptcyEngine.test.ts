@@ -21,7 +21,7 @@ function createSimulationMap(): MapConfig {
       colorGroups: [{ id: 'brown', name: 'Brown', tileIds: ['baltic_avenue'] }]
     },
     cards: { chance: [], communityChest: [] }, cardDecks: { chance: [], communityChest: [] },
-    rules: { allowAuctions: true, allowTrading: true, evenBuilding: true, auctionConfig: { durationSeconds: 30 }, mortgageInterestRate: 0.1, mortgagedPropertyValuation: 0.5, winCondition: WinCondition.LAST_PLAYER_STANDING, jailFine: 50, maxJailRolls: 3, doublesToJail: 3 }
+    rules: { allowAuctions: true, allowTrading: true, evenBuilding: true, auctionConfig: { durationSeconds: 30 }, mortgageInterestRate: 0.1, mortgagedPropertyValuation: 0.5, winCondition: WinCondition.LAST_STANDING, jailFine: 50, maxJailRolls: 3, doublesToJail: 3 }
   };
 }
 
@@ -66,7 +66,7 @@ describe('Bankruptcy Engine', () => {
     expect(newState.players['p1'].money).toBe(0);
     expect(newState.players['p1'].properties.length).toBe(0);
     expect(newState.players['p1'].getOutOfJailCards).toBe(0);
-    
+
     // Property returns to bank
     expect(newState.board.tiles['baltic_avenue'].ownerId).toBe(null);
     expect(newState.turn.pendingDecision).toBe(null);
@@ -134,7 +134,7 @@ describe('Bankruptcy Engine', () => {
     };
 
     const { newState, events } = DebtResolutionEngine.checkAndSettleDebt(state, mapConfig, 'action4', 1000);
-    
+
     expect(newState.players['p1'].money).toBe(0);
     expect(newState.players['p2'].money).toBe(2000);
     expect(newState.turn.pendingDecision).toBeNull();

@@ -63,26 +63,15 @@ export class GameService {
             avatarUrl: '',
             tokenId: ''
         }));
-        console.log("1. About to call createInitialState");
-        let result;
-        try {
-            result = GameEngine.createInitialState({
-                gameId: roomId,
-                roomId,
-                mapConfig: this.mapConfig,
-                players,
-                createdAt: Date.now()
-            });
-        }
-        catch (e) {
-            console.error('[SERVER: GameService] createInitialState FAILED with:', e);
-            throw e;
-        }
-        console.log("2. createInitialState finished");
+        const result = GameEngine.createInitialState({
+            gameId: roomId,
+            roomId,
+            mapConfig: this.mapConfig,
+            players,
+            createdAt: Date.now()
+        });
         this.roomManager.initializeRoomGame(roomId, result.newState);
-        console.log("3. initializeRoomGame finished");
         room.state = RoomState.RUNNING;
-        console.log("4. room.state set RUNNING");
         this.startTurnTimer(room);
         console.log("5. startTurnTimer finished");
     } // <-- THIS BRACE WAS MISSING
